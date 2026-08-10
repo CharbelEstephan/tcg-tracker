@@ -19,14 +19,19 @@ bp = Blueprint("pokemon", __name__)
 
 # Fields that stay the same across a run of matches (same deck, same event,
 # same night) so they're carried back into the form after each submit.
-STICKY = ["played_at", "event", "set_name", "location",
+STICKY = ["played_at", "event", "set_name", "location", "rank",
           "my_deck_kind", "my_energy_1", "my_energy_2", "my_energy_3"]
 
 # Fixed, closed set — rendered as dropdowns, not a managed list.
 ENERGY_TYPES = ["Grass", "Fire", "Water", "Lightning",
                 "Psychic", "Fighting", "Darkness", "Metal"]
 
-# Form field -> reference table. Both deck fields share one list.
+# The event value that unlocks the rank field. Compared case-insensitively.
+RANKED_EVENT = "ranked"
+
+# Form field -> reference table. Both deck fields share one list. The event
+# field must be resolved before rank (dict order), since rank is only kept
+# when the resolved event is "Ranked".
 FIELD_TABLE = {
     "my_deck_kind":  "pokemon_deck_kinds",
     "opp_deck_kind": "pokemon_deck_kinds",
@@ -34,6 +39,7 @@ FIELD_TABLE = {
     "event":         "pokemon_events",
     "set_name":      "pokemon_sets",
     "location":      "pokemon_locations",
+    "rank":          "pokemon_ranks",
 }
 
 # Which reference list feeds each field's autocomplete in the template.
@@ -43,6 +49,7 @@ LIST_TABLES = {
     "event":     "pokemon_events",
     "set":       "pokemon_sets",
     "location":  "pokemon_locations",
+    "rank":      "pokemon_ranks",
 }
 
 FIELD_LABELS = {
@@ -52,6 +59,7 @@ FIELD_LABELS = {
     "event":         "Event",
     "set_name":      "Set",
     "location":      "Location",
+    "rank":          "Rank",
 }
 
 
@@ -112,6 +120,26 @@ def get_recent(limit=15):
         return cur.fetchall()
 
 
+def get_rank_breakdown():
+    """Games logged at each rank, grouped by set -> [(rank, games), ...],
+    so you can look back on how long a climb took each set."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT COALESCE(NULLIF(set_name, ''), '(no set)') AS s,
+                   rank, COUNT(*) AS games
+            FROM matches_pokemon
+            WHERE rank IS NOT NULL AND rank <> ''
+            GROUP BY s, rank
+            ORDER BY s, COUNT(*) DESC, rank
+            """
+        )
+        out = {}
+        for set_name, rank, games in cur.fetchall():
+            out.setdefault(set_name, []).append((rank, games))
+        return out
+
+
 @bp.route("/pokemon", methods=["GET"])
 def form():
     return render_template(
@@ -122,6 +150,7 @@ def form():
         pending_new=None,
         carry={k: request.args.get(k, "") for k in STICKY},
         recent=get_recent(),
+        rank_breakdown=get_rank_breakdown(),
     )
 
 
@@ -137,6 +166,12 @@ def submit():
     resolved, pending_new = {}, []
 
     for field, table in FIELD_TABLE.items():
+        # Rank only applies to Ranked events. A hidden rank input can still
+        # post a stale value, so ignore it (and skip its new-value prompt)
+        # unless the resolved event is "Ranked".
+        if field == "rank" and (resolved.get("event") or "").lower() != RANKED_EVENT:
+            resolved["rank"] = None
+            continue
         raw = (f.get(field) or "").strip()
         canon = _canon(raw, list_by_field[field])
         if canon == "" or canon:
@@ -156,6 +191,7 @@ def submit():
             "pokemon.html", energies=ENERGY_TYPES, lists=lists,
             today=dt.date.today().isoformat(), pending_new=pending_new,
             carry={k: "" for k in STICKY}, recent=get_recent(),
+            rank_breakdown=get_rank_breakdown(),
         ), 200
 
     def energy(name):
@@ -175,6 +211,7 @@ def submit():
         _int(f.get("total_turns")),
         f.get("surrendered") == "on",
         resolved["location"],
+        resolved["rank"],
     )
 
     with get_conn() as conn, conn.cursor() as cur:
@@ -184,9 +221,9 @@ def submit():
               (played_at, my_deck_kind, my_energy_1, my_energy_2, my_energy_3,
                opp_deck_kind, opp_energy_1, opp_energy_2, opp_energy_3,
                event, set_name, result, my_points, opp_points,
-               went_first, mvp_card, total_turns, surrendered, location)
+               went_first, mvp_card, total_turns, surrendered, location, rank)
             VALUES (COALESCE(%s, CURRENT_DATE), %s,%s,%s,%s, %s,%s,%s,%s,
-                    %s,%s, %s,%s,%s, %s,%s,%s,%s,%s)
+                    %s,%s, %s,%s,%s, %s,%s,%s,%s,%s, %s)
             """,
             row,
         )
@@ -198,6 +235,7 @@ def submit():
         "event":        resolved["event"] or "",
         "set_name":     resolved["set_name"] or "",
         "location":     resolved["location"] or "",
+        "rank":         resolved["rank"] or "",
         "my_deck_kind": resolved["my_deck_kind"] or "",
         "my_energy_1":  f.get("my_energy_1") or "",
         "my_energy_2":  f.get("my_energy_2") or "",

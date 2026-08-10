@@ -102,6 +102,7 @@
   <datalist id="dl_event">{% for v in lists.event %}<option value="{{ v }}">{% endfor %}</datalist>
   <datalist id="dl_set">{% for v in lists.set %}<option value="{{ v }}">{% endfor %}</datalist>
   <datalist id="dl_loc">{% for v in lists.location %}<option value="{{ v }}">{% endfor %}</datalist>
+  <datalist id="dl_rank">{% for v in lists.rank %}<option value="{{ v }}">{% endfor %}</datalist>
 
   {% macro energy_select(name, required=false, selected='') %}
     <select name="{{ name }}" {{ 'required' if required }}>
@@ -120,9 +121,14 @@
         <div class="req"><label>Date</label>
           <input type="date" name="played_at" value="{{ request.form.get('played_at') or carry.get('played_at') or today }}"></div>
         <div><label>Event</label>
-          <input name="event" list="dl_event" value="{{ request.form.get('event') or carry.get('event','') }}" placeholder="Emblem Event"></div>
+          <input id="event-input" name="event" list="dl_event" value="{{ request.form.get('event') or carry.get('event','') }}" placeholder="Emblem Event"></div>
         <div><label>Set</label>
           <input name="set_name" list="dl_set" value="{{ request.form.get('set_name') or carry.get('set_name','') }}" placeholder="Ruler of the Skies"></div>
+      </div>
+      {# Rank only matters for Ranked play — shown when Event is "Ranked". #}
+      <div class="row" id="rank-row" hidden style="margin-top:12px">
+        <label>Current rank <span class="muted">— logged for Ranked games</span></label>
+        <input name="rank" list="dl_rank" value="{{ request.form.get('rank') or carry.get('rank','') }}" placeholder="e.g. Master Ball">
       </div>
     </fieldset>
 
@@ -212,7 +218,9 @@
     {% for m in recent %}
     <tr>
       <td style="white-space:nowrap">{{ m.played_at }}</td>
-      <td>{{ m.event or '—' }}{% if m.set_name %}<div class="muted">{{ m.set_name }}</div>{% endif %}</td>
+      <td>{{ m.event or '—' }}
+        {%- if m.rank %}<div class="muted">🏅 {{ m.rank }}</div>{% endif %}
+        {%- if m.set_name %}<div class="muted">{{ m.set_name }}</div>{% endif %}</td>
       <td>
         <div class="deck">{{ m.my_deck_kind }}</div>
         <div class="ens">{% for e in [m.my_energy_1, m.my_energy_2, m.my_energy_3] if e %}<span class="en en-{{ e|lower }}">{{ e }}</span>{% endfor %}</div>
@@ -239,6 +247,39 @@
     {% endfor %}
   </table>
   </div>
+
+  {% if rank_breakdown %}
+  <h2>Games by rank</h2>
+  <div class="recent-wrap">
+  <table>
+    <tr><th>Set</th><th>Rank</th><th>Games</th></tr>
+    {% for set_name, rows in rank_breakdown.items() %}
+      {% for rank, games in rows %}
+      <tr>
+        <td>{% if loop.first %}{{ set_name }}{% endif %}</td>
+        <td>🏅 {{ rank }}</td>
+        <td>{{ games }}</td>
+      </tr>
+      {% endfor %}
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
 </div>
+
+<script>
+  // Reveal the rank field only when the event is "Ranked".
+  (function () {
+    var ev = document.getElementById('event-input');
+    var row = document.getElementById('rank-row');
+    if (!ev || !row) return;
+    function sync() {
+      row.hidden = (ev.value || '').trim().toLowerCase() !== 'ranked';
+    }
+    ev.addEventListener('input', sync);
+    ev.addEventListener('change', sync);
+    sync();
+  })();
+</script>
 </body>
 </html>
