@@ -46,6 +46,23 @@
   .banner ul { margin:8px 0 12px; padding-left:18px; }
   .banner .actions { display:flex; gap:10px; }
   .muted { color:var(--muted); font-size:12px; }
+  h2 { font-size:15px; margin:30px 0 6px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+  td .deck { font-weight:600; }
+  .ens { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+  .en { font-size:10px; padding:1px 7px; border-radius:999px; color:#0b0e12; font-weight:700; white-space:nowrap; }
+  .en-grass{background:#3fb950;} .en-fire{background:#e3350d;color:#fff;} .en-water{background:#3e8bf7;color:#fff;}
+  .en-lightning{background:#f0c64a;} .en-psychic{background:#c65ad6;color:#fff;} .en-fighting{background:#d4884a;color:#fff;}
+  .en-darkness{background:#57606a;color:#fff;} .en-metal{background:#9aa7b5;}
+  .res { font-weight:700; padding:2px 9px; border-radius:6px; font-size:12px; }
+  .res-win { background:#12321d; color:#7ee0a1; } .res-loss { background:#3a1517; color:#f6a5a0; }
+  .res-draw { background:#2a313b; color:#c3ccd6; }
+  .del { background:transparent; border:1px solid var(--line); color:var(--muted);
+         padding:3px 9px; border-radius:6px; font-weight:700; font-size:14px; line-height:1; }
+  .del:hover { color:#f6a5a0; border-color:#6b2b2b; }
+  .recent-wrap { overflow-x:auto; }
 </style>
 </head>
 <body>
@@ -86,11 +103,11 @@
   <datalist id="dl_set">{% for v in lists.set %}<option value="{{ v }}">{% endfor %}</datalist>
   <datalist id="dl_loc">{% for v in lists.location %}<option value="{{ v }}">{% endfor %}</datalist>
 
-  {% macro energy_select(name, required=false) %}
+  {% macro energy_select(name, required=false, selected='') %}
     <select name="{{ name }}" {{ 'required' if required }}>
       {% if not required %}<option value="">—</option>{% endif %}
       {% for e in energies %}
-        <option value="{{ e }}" {{ 'selected' if request.form.get(name)==e }}>{{ e }}</option>
+        <option value="{{ e }}" {{ 'selected' if selected==e }}>{{ e }}</option>
       {% endfor %}
     </select>
   {% endmacro %}
@@ -101,22 +118,22 @@
       <legend>Context</legend>
       <div class="grid-3">
         <div class="req"><label>Date</label>
-          <input type="date" name="played_at" value="{{ request.form.get('played_at') or today }}"></div>
+          <input type="date" name="played_at" value="{{ request.form.get('played_at') or carry.get('played_at') or today }}"></div>
         <div><label>Event</label>
-          <input name="event" list="dl_event" value="{{ request.form.get('event','') }}" placeholder="Emblem Event"></div>
+          <input name="event" list="dl_event" value="{{ request.form.get('event') or carry.get('event','') }}" placeholder="Emblem Event"></div>
         <div><label>Set</label>
-          <input name="set_name" list="dl_set" value="{{ request.form.get('set_name','') }}" placeholder="Ruler of the Skies"></div>
+          <input name="set_name" list="dl_set" value="{{ request.form.get('set_name') or carry.get('set_name','') }}" placeholder="Ruler of the Skies"></div>
       </div>
     </fieldset>
 
     <fieldset>
       <legend>Your deck</legend>
       <div class="row req"><label>Deck kind</label>
-        <input name="my_deck_kind" list="dl_deck" required value="{{ request.form.get('my_deck_kind','') }}" placeholder="Mega Rayquaza"></div>
+        <input name="my_deck_kind" list="dl_deck" required value="{{ request.form.get('my_deck_kind') or carry.get('my_deck_kind','') }}" placeholder="Mega Rayquaza"></div>
       <div class="grid-3">
-        <div class="req"><label>Energy 1</label>{{ energy_select('my_energy_1', required=true) }}</div>
-        <div><label>Energy 2</label>{{ energy_select('my_energy_2') }}</div>
-        <div><label>Energy 3</label>{{ energy_select('my_energy_3') }}</div>
+        <div class="req"><label>Energy 1</label>{{ energy_select('my_energy_1', required=true, selected=request.form.get('my_energy_1') or carry.get('my_energy_1','')) }}</div>
+        <div><label>Energy 2</label>{{ energy_select('my_energy_2', selected=request.form.get('my_energy_2') or carry.get('my_energy_2','')) }}</div>
+        <div><label>Energy 3</label>{{ energy_select('my_energy_3', selected=request.form.get('my_energy_3') or carry.get('my_energy_3','')) }}</div>
       </div>
     </fieldset>
 
@@ -125,9 +142,9 @@
       <div class="row req"><label>Deck kind</label>
         <input name="opp_deck_kind" list="dl_deck" required value="{{ request.form.get('opp_deck_kind','') }}"></div>
       <div class="grid-3">
-        <div class="req"><label>Energy 1</label>{{ energy_select('opp_energy_1', required=true) }}</div>
-        <div><label>Energy 2</label>{{ energy_select('opp_energy_2') }}</div>
-        <div><label>Energy 3</label>{{ energy_select('opp_energy_3') }}</div>
+        <div class="req"><label>Energy 1</label>{{ energy_select('opp_energy_1', required=true, selected=request.form.get('opp_energy_1','')) }}</div>
+        <div><label>Energy 2</label>{{ energy_select('opp_energy_2', selected=request.form.get('opp_energy_2','')) }}</div>
+        <div><label>Energy 3</label>{{ energy_select('opp_energy_3', selected=request.form.get('opp_energy_3','')) }}</div>
       </div>
     </fieldset>
 
@@ -168,7 +185,7 @@
         <div><label>Winner's MVP card</label>
           <input name="mvp_card" list="dl_mvp" value="{{ request.form.get('mvp_card','') }}"></div>
         <div><label>Location</label>
-          <input name="location" list="dl_loc" value="{{ request.form.get('location','') }}"></div>
+          <input name="location" list="dl_loc" value="{{ request.form.get('location') or carry.get('location','') }}"></div>
       </div>
       <div class="radios" style="margin-top:12px">
         <label><input type="checkbox" name="surrendered"
@@ -182,7 +199,46 @@
   <p class="muted" style="margin-top:14px">
     Type freely in deck / MVP / event / set / location — matching suggestions appear as you type.
     Anything genuinely new triggers a confirm step before it's added, so typos can't sneak in as duplicates.
+    Your deck, date, event and set carry over to the next match so a run with the same deck needs no retyping.
   </p>
+
+  <h2>Recent</h2>
+  <div class="recent-wrap">
+  <table>
+    <tr>
+      <th>Date</th><th>Event</th><th>My deck</th><th>Opponent</th>
+      <th>First</th><th>Pts</th><th>Result</th><th></th>
+    </tr>
+    {% for m in recent %}
+    <tr>
+      <td style="white-space:nowrap">{{ m.played_at }}</td>
+      <td>{{ m.event or '—' }}{% if m.set_name %}<div class="muted">{{ m.set_name }}</div>{% endif %}</td>
+      <td>
+        <div class="deck">{{ m.my_deck_kind }}</div>
+        <div class="ens">{% for e in [m.my_energy_1, m.my_energy_2, m.my_energy_3] if e %}<span class="en en-{{ e|lower }}">{{ e }}</span>{% endfor %}</div>
+      </td>
+      <td>
+        <div class="deck">{{ m.opp_deck_kind }}</div>
+        <div class="ens">{% for e in [m.opp_energy_1, m.opp_energy_2, m.opp_energy_3] if e %}<span class="en en-{{ e|lower }}">{{ e }}</span>{% endfor %}</div>
+      </td>
+      <td>{{ 'Yes' if m.went_first else 'No' }}</td>
+      <td style="white-space:nowrap">
+        {%- if m.my_points is not none or m.opp_points is not none -%}
+          {{ m.my_points if m.my_points is not none else '–' }}&ndash;{{ m.opp_points if m.opp_points is not none else '–' }}
+        {%- else -%}—{%- endif -%}
+      </td>
+      <td><span class="res res-{{ m.result }}">{{ {'win':'W','loss':'L','draw':'D'}.get(m.result, '?') }}</span></td>
+      <td>
+        <form method="post" action="{{ url_for('pokemon.delete', match_id=m.id) }}" onsubmit="return confirm('Delete this match?')">
+          <button class="del" type="submit">&times;</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">No matches logged yet.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
 </div>
 </body>
 </html>

@@ -11,10 +11,16 @@ import os
 import datetime as dt
 
 import psycopg2
+import psycopg2.extras
 from flask import (Blueprint, render_template, request,
                    redirect, url_for, flash)
 
 bp = Blueprint("pokemon", __name__)
+
+# Fields that stay the same across a run of matches (same deck, same event,
+# same night) so they're carried back into the form after each submit.
+STICKY = ["played_at", "event", "set_name", "location",
+          "my_deck_kind", "my_energy_1", "my_energy_2", "my_energy_3"]
 
 # Fixed, closed set — rendered as dropdowns, not a managed list.
 ENERGY_TYPES = ["Grass", "Fire", "Water", "Lightning",
@@ -95,6 +101,17 @@ def _int(v):
     return int(v) if v.lstrip("-").isdigit() else None
 
 
+def get_recent(limit=15):
+    with get_conn() as conn, \
+            conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute(
+            "SELECT * FROM matches_pokemon "
+            "ORDER BY played_at DESC, id DESC LIMIT %s",
+            (limit,),
+        )
+        return cur.fetchall()
+
+
 @bp.route("/pokemon", methods=["GET"])
 def form():
     return render_template(
@@ -103,6 +120,8 @@ def form():
         lists=load_lists(),
         today=dt.date.today().isoformat(),
         pending_new=None,
+        carry={k: request.args.get(k, "") for k in STICKY},
+        recent=get_recent(),
     )
 
 
@@ -131,10 +150,12 @@ def submit():
                 resolved[field] = raw
 
     # New values found and not yet confirmed -> bounce with a confirm banner.
+    # request.form still holds every field, so the form re-renders as typed.
     if pending_new and not confirm_new:
         return render_template(
             "pokemon.html", energies=ENERGY_TYPES, lists=lists,
             today=dt.date.today().isoformat(), pending_new=pending_new,
+            carry={k: "" for k in STICKY}, recent=get_recent(),
         ), 200
 
     def energy(name):
@@ -170,4 +191,24 @@ def submit():
             row,
         )
     flash("Match logged.", "ok")
+    # Carry the sticky context/deck fields back into the fresh form so a run of
+    # matches with the same deck doesn't need retyping.
+    carry_out = {
+        "played_at":    f.get("played_at") or "",
+        "event":        resolved["event"] or "",
+        "set_name":     resolved["set_name"] or "",
+        "location":     resolved["location"] or "",
+        "my_deck_kind": resolved["my_deck_kind"] or "",
+        "my_energy_1":  f.get("my_energy_1") or "",
+        "my_energy_2":  f.get("my_energy_2") or "",
+        "my_energy_3":  f.get("my_energy_3") or "",
+    }
+    return redirect(url_for("pokemon.form",
+                            **{k: v for k, v in carry_out.items() if v}))
+
+
+@bp.route("/pokemon/delete/<int:match_id>", methods=["POST"])
+def delete(match_id):
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM matches_pokemon WHERE id = %s", (match_id,))
     return redirect(url_for("pokemon.form"))
