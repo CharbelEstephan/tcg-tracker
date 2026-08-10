@@ -50,8 +50,15 @@ FIELD_LABELS = {
 
 
 def get_conn():
-    """Adapt this to your app's existing connection helper if you have one."""
-    return psycopg2.connect("postgresql://neondb_owner:npg_d6bXZ3jimfEG@ep-sweet-fog-ay51o7hq-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
+    """Same Neon database as the main app, read from the environment so the
+    connection string lives only in .env (never in source or git history)."""
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError(
+            "DATABASE_URL is not set. Add it to your .env file "
+            "(the main app loads it via python-dotenv on startup)."
+        )
+    return psycopg2.connect(database_url)
 
 
 def load_lists():
