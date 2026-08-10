@@ -1,0 +1,188 @@
+{# templates/pokemon.html
+   Standalone so it runs as-is. To fold into the tracker's shared layout,
+   replace the <style> block + wrapper with {% extends "base.html" %}. #}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCG Tracker — Pokemon</title>
+<style>
+  :root { --bg:#111418; --card:#1a1f26; --line:#2a313b; --fg:#e7ecf2;
+          --muted:#95a0ad; --accent:#e3350d; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:24px 18px 60px; }
+  .toggle { display:flex; gap:8px; margin-bottom:22px; }
+  .toggle a { flex:1; text-align:center; padding:10px; border-radius:8px;
+              text-decoration:none; color:var(--muted);
+              background:var(--card); border:1px solid var(--line); }
+  .toggle a.active { color:#fff; background:var(--accent); border-color:var(--accent); }
+  h1 { font-size:19px; margin:0 0 16px; }
+  fieldset { border:1px solid var(--line); border-radius:10px;
+             margin:0 0 16px; padding:14px 16px; background:var(--card); }
+  legend { padding:0 6px; color:var(--muted); font-size:12px;
+           text-transform:uppercase; letter-spacing:.06em; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  input, select { width:100%; padding:9px 10px; border-radius:7px;
+                  border:1px solid var(--line); background:#0f1319;
+                  color:var(--fg); font-size:14px; }
+  .req label::after { content:" *"; color:var(--accent); }
+  .row { margin-bottom:12px; }
+  .radios { display:flex; gap:16px; padding-top:6px; }
+  .radios label { display:flex; align-items:center; gap:6px; color:var(--fg); margin:0; }
+  .radios input { width:auto; }
+  button { padding:11px 18px; border-radius:8px; border:0; cursor:pointer;
+           font-size:14px; font-weight:600; }
+  .primary { background:var(--accent); color:#fff; }
+  .ghost { background:transparent; color:var(--muted); border:1px solid var(--line); }
+  .flash { padding:10px 14px; border-radius:8px; margin-bottom:16px; }
+  .flash.ok { background:#12321d; color:#7ee0a1; border:1px solid #1e5433; }
+  .banner { background:#33240f; border:1px solid #6b4c17; color:#f0cf90;
+            padding:14px 16px; border-radius:10px; margin-bottom:18px; }
+  .banner ul { margin:8px 0 12px; padding-left:18px; }
+  .banner .actions { display:flex; gap:10px; }
+  .muted { color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  {# ---- Game toggle (lives in your shared layout ideally) ---- #}
+  <nav class="toggle">
+    <a href="{{ url_for('index') }}">Riftbound</a>
+    <a class="active" href="{{ url_for('pokemon.form') }}">Pokemon</a>
+  </nav>
+
+  <h1>Log a Pokemon TCG Pocket match</h1>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      {% if cat == 'ok' %}<div class="flash ok">{{ msg }}</div>{% endif %}
+    {% endfor %}
+  {% endwith %}
+
+  {% if pending_new %}
+    <div class="banner">
+      <strong>New values — confirm before saving.</strong>
+      <div class="muted">These aren't in your lists yet. Add them, or go back and pick the existing spelling.</div>
+      <ul>
+        {% for label, val in pending_new %}<li>{{ label }}: <strong>{{ val }}</strong></li>{% endfor %}
+      </ul>
+      <div class="actions">
+        <button type="submit" form="matchform" name="confirm_new" value="1" class="primary">Add these &amp; save</button>
+        <span class="muted" style="align-self:center">…or edit the fields below and re-submit.</span>
+      </div>
+    </div>
+  {% endif %}
+
+  {# ---- Autocomplete sources ---- #}
+  <datalist id="dl_deck">{% for v in lists.deck_kind %}<option value="{{ v }}">{% endfor %}</datalist>
+  <datalist id="dl_mvp">{% for v in lists.mvp_card %}<option value="{{ v }}">{% endfor %}</datalist>
+  <datalist id="dl_event">{% for v in lists.event %}<option value="{{ v }}">{% endfor %}</datalist>
+  <datalist id="dl_set">{% for v in lists.set %}<option value="{{ v }}">{% endfor %}</datalist>
+  <datalist id="dl_loc">{% for v in lists.location %}<option value="{{ v }}">{% endfor %}</datalist>
+
+  {% macro energy_select(name, required=false) %}
+    <select name="{{ name }}" {{ 'required' if required }}>
+      {% if not required %}<option value="">—</option>{% endif %}
+      {% for e in energies %}
+        <option value="{{ e }}" {{ 'selected' if request.form.get(name)==e }}>{{ e }}</option>
+      {% endfor %}
+    </select>
+  {% endmacro %}
+
+  <form id="matchform" method="post" action="{{ url_for('pokemon.form') }}">
+
+    <fieldset>
+      <legend>Context</legend>
+      <div class="grid-3">
+        <div class="req"><label>Date</label>
+          <input type="date" name="played_at" value="{{ request.form.get('played_at') or today }}"></div>
+        <div><label>Event</label>
+          <input name="event" list="dl_event" value="{{ request.form.get('event','') }}" placeholder="Emblem Event"></div>
+        <div><label>Set</label>
+          <input name="set_name" list="dl_set" value="{{ request.form.get('set_name','') }}" placeholder="Ruler of the Skies"></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Your deck</legend>
+      <div class="row req"><label>Deck kind</label>
+        <input name="my_deck_kind" list="dl_deck" required value="{{ request.form.get('my_deck_kind','') }}" placeholder="Mega Rayquaza"></div>
+      <div class="grid-3">
+        <div class="req"><label>Energy 1</label>{{ energy_select('my_energy_1', required=true) }}</div>
+        <div><label>Energy 2</label>{{ energy_select('my_energy_2') }}</div>
+        <div><label>Energy 3</label>{{ energy_select('my_energy_3') }}</div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Opponent deck</legend>
+      <div class="row req"><label>Deck kind</label>
+        <input name="opp_deck_kind" list="dl_deck" required value="{{ request.form.get('opp_deck_kind','') }}"></div>
+      <div class="grid-3">
+        <div class="req"><label>Energy 1</label>{{ energy_select('opp_energy_1', required=true) }}</div>
+        <div><label>Energy 2</label>{{ energy_select('opp_energy_2') }}</div>
+        <div><label>Energy 3</label>{{ energy_select('opp_energy_3') }}</div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Result</legend>
+      <div class="grid">
+        <div class="req"><label>Result</label>
+          <select name="result" required>
+            {% for r in ['win','loss','draw'] %}
+              <option value="{{ r }}" {{ 'selected' if request.form.get('result')==r }}>{{ r|capitalize }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="req"><label>Went first / second</label>
+          <div class="radios">
+            <label><input type="radio" name="went_first" value="first"
+              {{ 'checked' if request.form.get('went_first','first')=='first' }}> First</label>
+            <label><input type="radio" name="went_first" value="second"
+              {{ 'checked' if request.form.get('went_first')=='second' }}> Second</label>
+          </div></div>
+      </div>
+      <div class="grid-3" style="margin-top:12px">
+        <div><label>My points (0–3)</label>
+          <select name="my_points">
+            {% for p in ['','0','1','2','3'] %}
+              <option value="{{ p }}" {{ 'selected' if request.form.get('my_points')==p }}>{{ p or '—' }}</option>
+            {% endfor %}
+          </select></div>
+        <div><label>Their points (0–3)</label>
+          <select name="opp_points">
+            {% for p in ['','0','1','2','3'] %}
+              <option value="{{ p }}" {{ 'selected' if request.form.get('opp_points')==p }}>{{ p or '—' }}</option>
+            {% endfor %}
+          </select></div>
+        <div><label>Total turns</label>
+          <input type="number" name="total_turns" min="0" value="{{ request.form.get('total_turns','') }}"></div>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div><label>Winner's MVP card</label>
+          <input name="mvp_card" list="dl_mvp" value="{{ request.form.get('mvp_card','') }}"></div>
+        <div><label>Location</label>
+          <input name="location" list="dl_loc" value="{{ request.form.get('location','') }}"></div>
+      </div>
+      <div class="radios" style="margin-top:12px">
+        <label><input type="checkbox" name="surrendered"
+          {{ 'checked' if request.form.get('surrendered')=='on' }}> Surrender</label>
+      </div>
+    </fieldset>
+
+    <button type="submit" class="primary">Log match</button>
+  </form>
+
+  <p class="muted" style="margin-top:14px">
+    Type freely in deck / MVP / event / set / location — matching suggestions appear as you type.
+    Anything genuinely new triggers a confirm step before it's added, so typos can't sneak in as duplicates.
+  </p>
+</div>
+</body>
+</html>

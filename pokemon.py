@@ -1,0 +1,166 @@
+"""pokemon.py — Pokemon TCG Pocket logging for the TCG Tracker.
+
+Drop into the existing tracker app and register it:
+
+    from pokemon import bp as pokemon_bp
+    app.register_blueprint(pokemon_bp)
+
+The one thing to adapt to your app is get_conn() below.
+"""
+import os
+import datetime as dt
+
+import psycopg2
+from flask import (Blueprint, render_template, request,
+                   redirect, url_for, flash)
+
+bp = Blueprint("pokemon", __name__)
+
+# Fixed, closed set — rendered as dropdowns, not a managed list.
+ENERGY_TYPES = ["Grass", "Fire", "Water", "Lightning",
+                "Psychic", "Fighting", "Darkness", "Metal"]
+
+# Form field -> reference table. Both deck fields share one list.
+FIELD_TABLE = {
+    "my_deck_kind":  "pokemon_deck_kinds",
+    "opp_deck_kind": "pokemon_deck_kinds",
+    "mvp_card":      "pokemon_mvp_cards",
+    "event":         "pokemon_events",
+    "set_name":      "pokemon_sets",
+    "location":      "pokemon_locations",
+}
+
+# Which reference list feeds each field's autocomplete in the template.
+LIST_TABLES = {
+    "deck_kind": "pokemon_deck_kinds",
+    "mvp_card":  "pokemon_mvp_cards",
+    "event":     "pokemon_events",
+    "set":       "pokemon_sets",
+    "location":  "pokemon_locations",
+}
+
+FIELD_LABELS = {
+    "my_deck_kind":  "Your deck",
+    "opp_deck_kind": "Opponent deck",
+    "mvp_card":      "MVP card",
+    "event":         "Event",
+    "set_name":      "Set",
+    "location":      "Location",
+}
+
+
+def get_conn():
+    """Adapt this to your app's existing connection helper if you have one."""
+    return psycopg2.connect("postgresql://neondb_owner:npg_d6bXZ3jimfEG@ep-sweet-fog-ay51o7hq-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
+
+
+def load_lists():
+    out = {}
+    with get_conn() as conn, conn.cursor() as cur:
+        for key, table in LIST_TABLES.items():
+            cur.execute(f"SELECT name FROM {table} ORDER BY name")
+            out[key] = [r[0] for r in cur.fetchall()]
+    return out
+
+
+def _canon(value, known):
+    """Existing canonical name (case-insensitive) -> str;
+    empty -> ''; genuinely new -> None."""
+    v = (value or "").strip()
+    if not v:
+        return ""
+    for name in known:
+        if name.lower() == v.lower():
+            return name
+    return None
+
+
+def _add_list_item(table, name):
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            f"INSERT INTO {table} (name) VALUES (%s) ON CONFLICT (name) DO NOTHING",
+            (name,),
+        )
+
+
+def _int(v):
+    v = (v or "").strip()
+    return int(v) if v.lstrip("-").isdigit() else None
+
+
+@bp.route("/pokemon", methods=["GET"])
+def form():
+    return render_template(
+        "pokemon.html",
+        energies=ENERGY_TYPES,
+        lists=load_lists(),
+        today=dt.date.today().isoformat(),
+        pending_new=None,
+    )
+
+
+@bp.route("/pokemon", methods=["POST"])
+def submit():
+    f = request.form
+    lists = load_lists()
+    list_by_field = {field: lists[
+        next(k for k, t in LIST_TABLES.items() if t == table)
+    ] for field, table in FIELD_TABLE.items()}
+
+    confirm_new = f.get("confirm_new") == "1"
+    resolved, pending_new = {}, []
+
+    for field, table in FIELD_TABLE.items():
+        raw = (f.get(field) or "").strip()
+        canon = _canon(raw, list_by_field[field])
+        if canon == "" or canon:
+            resolved[field] = canon or None
+        else:  # None -> new value
+            if confirm_new:
+                _add_list_item(table, raw)
+                resolved[field] = raw
+            else:
+                pending_new.append((FIELD_LABELS[field], raw))
+                resolved[field] = raw
+
+    # New values found and not yet confirmed -> bounce with a confirm banner.
+    if pending_new and not confirm_new:
+        return render_template(
+            "pokemon.html", energies=ENERGY_TYPES, lists=lists,
+            today=dt.date.today().isoformat(), pending_new=pending_new,
+        ), 200
+
+    def energy(name):
+        return (f.get(name) or "").strip() or None
+
+    row = (
+        f.get("played_at") or None,
+        resolved["my_deck_kind"], energy("my_energy_1"),
+        energy("my_energy_2"), energy("my_energy_3"),
+        resolved["opp_deck_kind"], energy("opp_energy_1"),
+        energy("opp_energy_2"), energy("opp_energy_3"),
+        resolved["event"], resolved["set_name"],
+        f.get("result"),
+        _int(f.get("my_points")), _int(f.get("opp_points")),
+        f.get("went_first") == "first",
+        resolved["mvp_card"],
+        _int(f.get("total_turns")),
+        f.get("surrendered") == "on",
+        resolved["location"],
+    )
+
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO matches_pokemon
+              (played_at, my_deck_kind, my_energy_1, my_energy_2, my_energy_3,
+               opp_deck_kind, opp_energy_1, opp_energy_2, opp_energy_3,
+               event, set_name, result, my_points, opp_points,
+               went_first, mvp_card, total_turns, surrendered, location)
+            VALUES (COALESCE(%s, CURRENT_DATE), %s,%s,%s,%s, %s,%s,%s,%s,
+                    %s,%s, %s,%s,%s, %s,%s,%s,%s,%s)
+            """,
+            row,
+        )
+    flash("Match logged.", "ok")
+    return redirect(url_for("pokemon.form"))

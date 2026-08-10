@@ -10,10 +10,12 @@ from dotenv import load_dotenv
 from flask import Flask, redirect, render_template, request, session, url_for
 
 import options
+from pokemon import bp as pokemon_bp
 
 load_dotenv()
 
 app = Flask(__name__)
+app.register_blueprint(pokemon_bp)
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
