@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game log — pick a game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B0D14; --bg-2: #0E1120;
+    --surface: rgba(24, 27, 42, 0.72);
+    --ink: #EDF0F7; --muted: #A2A9BD; --faint: #6C7488;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.14);
+    --accent: #7C6CFF; --accent-2: #22D3EE; --loss: #FB6B63;
+    --glow: 0 0 0 1px var(--line), 0 20px 40px -24px rgba(0, 0, 0, 0.9);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 15px;
+    background:
+      radial-gradient(900px 500px at 12% -8%, rgba(124, 108, 255, 0.18), transparent 60%),
+      radial-gradient(760px 460px at 100% 0%, rgba(34, 211, 238, 0.12), transparent 55%),
+      linear-gradient(180deg, var(--bg-2), var(--bg));
+    background-attachment: fixed; min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 64px 20px 96px; }
+  .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+  h1 {
+    font-family: "Sora", sans-serif; font-size: 30px; font-weight: 700;
+    margin: 0; letter-spacing: -0.02em;
+    background: linear-gradient(120deg, #fff 20%, var(--accent-2) 120%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .logout { margin-left: auto; font-size: 12px; color: var(--faint); text-decoration: none; align-self: center; }
+  .logout:hover { color: var(--loss); }
+  p.sub { color: var(--muted); font-size: 14px; margin: 0 0 34px; }
+  .games { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+  .game {
+    display: flex; flex-direction: column; gap: 6px; text-decoration: none;
+    padding: 22px 22px 24px; border-radius: 16px;
+    background: var(--surface); border: 1px solid var(--line);
+    box-shadow: var(--glow); backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease;
+  }
+  .game:hover {
+    transform: translateY(-3px); border-color: var(--line-strong);
+    box-shadow: 0 0 0 1px var(--line-strong), 0 26px 50px -24px rgba(0, 0, 0, 0.95);
+  }
+  .game .name {
+    font-family: "Sora", sans-serif; font-size: 18px; font-weight: 600;
+    color: var(--ink); letter-spacing: -0.01em;
+  }
+  .game .tag { color: var(--faint); font-size: 13px; }
+  .game .go {
+    margin-top: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--accent-2);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>Game log</h1>
+    <a class="logout" href="{{ url_for('logout') }}">Log out</a>
+  </div>
+  <p class="sub">Pick a game to start logging.</p>
+
+  <div class="games">
+    {% for game in games %}
+    <a class="game" href="{{ url_for(game.endpoint) }}">
+      <span class="name">{{ game.name }}</span>
+      <span class="tag">{{ game.tagline }}</span>
+      <span class="go">Open log →</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+</body>
+</html>

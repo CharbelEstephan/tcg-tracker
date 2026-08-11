@@ -52,6 +52,9 @@
   }
   button:hover { filter: brightness(1.07); }
   .error { margin: 14px 0 0; font-size: 13px; color: var(--loss); }
+  .remember { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+  .remember input { width: auto; margin: 0; accent-color: var(--accent); }
+  .remember label { margin: 0; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--faint); font-weight: 400; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -60,6 +63,10 @@
     <p class="sub">Enter the password to continue.</p>
     <label for="password">Password</label>
     <input type="password" id="password" name="password" autofocus required>
+    <div class="remember">
+      <input type="checkbox" id="remember" name="remember" value="1">
+      <label for="remember">Keep me logged in for 30 days</label>
+    </div>
     <button type="submit">Sign in</button>
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
   </form>

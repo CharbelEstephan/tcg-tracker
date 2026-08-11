@@ -1,8 +1,7 @@
 import os
 import hmac
-from functools import wraps
 from collections import Counter, defaultdict
-from datetime import date
+from datetime import date, timedelta
 
 import psycopg2
 import psycopg2.extras
@@ -38,16 +37,43 @@ if not SECRET_KEY:
         "SECRET_KEY=<a long random string used to sign session cookies>"
     )
 app.secret_key = SECRET_KEY
+# "Remember me" logins ride a persistent cookie that lasts this long. A normal
+# login stays a session cookie that dies when the browser closes. Either way
+# only a signed "authed" flag travels in the cookie — never the password.
+app.permanent_session_lifetime = timedelta(days=30)
 
 
-def login_required(view):
-    """Send any unauthenticated request to /login, then run the view as normal."""
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-        if not session.get("authed"):
-            return redirect(url_for("login"))
-        return view(*args, **kwargs)
-    return wrapped
+# Every game the tracker knows about, in one place. Add a game here (one entry)
+# and it appears on the home picker automatically. "endpoint" is whatever
+# url_for() resolves to — a plain view name, or "blueprint.view" for a
+# blueprint route like Pokemon's.
+GAMES = [
+    {
+        "name": "Riftbound",
+        "endpoint": "riftbound",
+        "tagline": "Log matches, pulls, and box hits.",
+    },
+    {
+        "name": "Pokemon TCG Pocket",
+        "endpoint": "pokemon.form",
+        "tagline": "Log ranked and casual matches.",
+    },
+]
+
+# The only endpoints reachable while logged out. Everything else — the home
+# picker, every game logger, and any game added later — is gated below.
+PUBLIC_ENDPOINTS = {"login", "static"}
+
+
+@app.before_request
+def require_login():
+    """A single gate in front of the whole app so no route can be left
+    unprotected by accident. The login page and static assets stay open;
+    every other request needs a signed-in session or gets bounced to /login."""
+    if request.endpoint in PUBLIC_ENDPOINTS:
+        return
+    if not session.get("authed"):
+        return redirect(url_for("login"))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -58,9 +84,18 @@ def login():
         # Constant-time compare so a wrong guess can't be timed character by character.
         if hmac.compare_digest(supplied.encode("utf-8"), APP_PASSWORD.encode("utf-8")):
             session["authed"] = True
-            return redirect(url_for("index"))
+            # "Remember me" makes the session cookie persistent (~30 days);
+            # otherwise it lasts only until the browser closes.
+            session.permanent = bool(request.form.get("remember"))
+            return redirect(url_for("home"))
         error = "Incorrect password."
     return render_template("login.html", error=error)
+
+
+@app.route("/")
+def home():
+    """Game picker — the front door. Drives its card list straight off GAMES."""
+    return render_template("home.html", games=GAMES)
 
 
 @app.route("/logout")
@@ -207,9 +242,8 @@ def collect_card_names(form, named_types):
     return rows
 
 
-@app.route("/")
-@login_required
-def index():
+@app.route("/riftbound")
+def riftbound():
     wins, losses = get_record()
     total = wins + losses
 
@@ -296,7 +330,6 @@ def parse_bool(value):
 
 
 @app.route("/add", methods=["POST"])
-@login_required
 def add():
     f = request.form
 
@@ -347,20 +380,18 @@ def add():
             won=f["won"] == "true",
         )])
 
-    return redirect(url_for("index"))
+    return redirect(url_for("riftbound"))
 
 
 @app.route("/delete/<int:game_id>", methods=["POST"])
-@login_required
 def delete(game_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM games WHERE id = %s", (game_id,))
-    return redirect(url_for("index"))
+    return redirect(url_for("riftbound"))
 
 
 @app.route("/pulls", methods=["POST"])
-@login_required
 def add_pull():
     f = request.form
 
@@ -399,20 +430,18 @@ def add_pull():
                     [(opening_id, rarity, name) for rarity, name in card_rows],
                 )
 
-    return redirect(url_for("index", _anchor="tab-pulls"))
+    return redirect(url_for("riftbound", _anchor="tab-pulls"))
 
 
 @app.route("/pulls/delete/<int:opening_id>", methods=["POST"])
-@login_required
 def delete_pull(opening_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM openings WHERE id = %s", (opening_id,))
-    return redirect(url_for("index", _anchor="tab-pulls"))
+    return redirect(url_for("riftbound", _anchor="tab-pulls"))
 
 
 @app.route("/boxes", methods=["POST"])
-@login_required
 def add_box():
     f = request.form
 
@@ -447,16 +476,15 @@ def add_box():
                     [(box_id, rarity, name) for rarity, name in card_rows],
                 )
 
-    return redirect(url_for("index", _anchor="tab-boxes"))
+    return redirect(url_for("riftbound", _anchor="tab-boxes"))
 
 
 @app.route("/boxes/delete/<int:box_id>", methods=["POST"])
-@login_required
 def delete_box(box_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM boxes WHERE id = %s", (box_id,))
-    return redirect(url_for("index", _anchor="tab-boxes"))
+    return redirect(url_for("riftbound", _anchor="tab-boxes"))
 
 
 if __name__ == "__main__":
