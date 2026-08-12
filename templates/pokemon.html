@@ -269,6 +269,21 @@
 </div>
 
 <script>
+  // The server stamps "today" in its own timezone (UTC on Render), which reads
+  // as tomorrow for anyone behind UTC. Re-default the date field to the
+  // browser's local date — but only where it still holds the server default, so
+  // a carried or hand-picked date is left untouched.
+  (function () {
+    const d = new Date();
+    const localToday = d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+    const serverToday = "{{ today }}";
+    document.querySelectorAll('input[type=date]').forEach(function (inp) {
+      if (inp.value === serverToday) inp.value = localToday;
+    });
+  })();
+
   // Reveal the rank field only when the event is "Ranked".
   (function () {
     var ev = document.getElementById('event-input');
