@@ -380,7 +380,22 @@ def add():
             won=f["won"] == "true",
         )])
 
-    return redirect(url_for("riftbound"))
+    # Carry the date + "Me" context (event, location, legend, domains, deck)
+    # back into the fresh form so a run of games logged back-to-back doesn't
+    # need retyping. The date rides along, so this stays scoped to the same day:
+    # opening Riftbound fresh from Home carries nothing and defaults to today.
+    # Opponent fields are intentionally dropped — they change every game.
+    carry_out = {
+        "played_on":   base["played_on"],
+        "event_type":  base["event_type"],
+        "location":    base["location"] or "",
+        "my_leader":   base["my_leader"],
+        "my_domain_1": base["my_domain_1"] or "",
+        "my_domain_2": base["my_domain_2"] or "",
+        "my_deck":     base["my_deck"] or "",
+    }
+    return redirect(url_for("riftbound",
+                            **{k: v for k, v in carry_out.items() if v}))
 
 
 @app.route("/delete/<int:game_id>", methods=["POST"])
