@@ -166,6 +166,26 @@ def get_deck_energies():
     }
 
 
+def get_stats():
+    """Top-line record for the stats strip: games, W/L/D, and win rate."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT COUNT(*),
+                   COUNT(*) FILTER (WHERE result = 'win'),
+                   COUNT(*) FILTER (WHERE result = 'loss'),
+                   COUNT(*) FILTER (WHERE result = 'draw')
+            FROM matches_pokemon
+            """
+        )
+        games, wins, losses, draws = cur.fetchone()
+    decisive = wins + losses
+    return {
+        "games": games, "wins": wins, "losses": losses, "draws": draws,
+        "winrate": round(100 * wins / decisive, 1) if decisive else None,
+    }
+
+
 def get_coin_summary():
     """Running heads/tails totals for you vs opponents across every game, so
     you can see how the coin has treated each side over time."""
@@ -303,6 +323,7 @@ def _render_form(**over):
         rank_breakdown=get_rank_breakdown(),
         deck_energies=get_deck_energies(),
         coin=get_coin_summary(),
+        stats=get_stats(),
         edit_id=None,
         initial={},
     )
