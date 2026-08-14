@@ -32,10 +32,30 @@
       linear-gradient(180deg, var(--bg-2), var(--bg));
     background-attachment:fixed;
   }
-  .wrap { max-width:1120px; margin:0 auto; padding:40px 20px 96px; }
-  .dash { display:grid; grid-template-columns:minmax(0,1.02fr) minmax(0,0.98fr);
-    gap:20px; align-items:start; }
-  .col-data { position:sticky; top:20px; }
+  .wrap { max-width:660px; margin:0 auto; padding:40px 20px 96px; }
+  .pagehead { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+  .history-btn { flex:none; display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+    background:var(--surface); border:1px solid var(--line-strong); color:var(--ink);
+    padding:9px 14px; border-radius:10px; font:inherit; font-weight:500; font-size:13px;
+    box-shadow:var(--glow); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+  .history-btn:hover { border-color:var(--accent); }
+  .history-btn .pill { background:color-mix(in srgb, var(--accent) 24%, transparent);
+    color:#fff; border-radius:999px; padding:1px 8px; font-size:11px; font-weight:700; }
+  .scrim { position:fixed; inset:0; background:rgba(4,5,10,0.55); backdrop-filter:blur(2px);
+    opacity:0; pointer-events:none; transition:opacity .25s; z-index:55; }
+  .scrim.open { opacity:1; pointer-events:auto; }
+  .drawer { position:fixed; top:0; right:0; height:100dvh; width:min(480px,94vw); z-index:60;
+    display:flex; flex-direction:column; transform:translateX(100%); transition:transform .28s ease;
+    background:linear-gradient(180deg, rgba(22,18,20,0.98), rgba(11,13,20,0.98));
+    border-left:1px solid var(--line-strong); box-shadow:-24px 0 70px -24px rgba(0,0,0,0.85); }
+  .drawer.open { transform:none; }
+  .drawer-head { display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px; border-bottom:1px solid var(--line); flex:none; }
+  .drawer-head h2 { margin:0; }
+  .drawer-close { background:none; border:1px solid var(--line-strong); color:var(--muted);
+    width:32px; height:32px; border-radius:8px; font-size:18px; line-height:1; cursor:pointer; padding:0; }
+  .drawer-close:hover { color:var(--ink); border-color:var(--accent); }
+  .drawer-body { padding:16px 20px 28px; overflow-y:auto; }
   .subtabs { display:flex; gap:4px; padding:4px; margin-bottom:12px;
     background:var(--surface); border:1px solid var(--line); border-radius:12px;
     box-shadow:var(--glow); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
@@ -46,9 +66,7 @@
   .subtab.active { color:#fff;
     background:linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 72%, #000));
     box-shadow:0 6px 16px -8px color-mix(in srgb, var(--accent) 80%, transparent); }
-  .col-data .recent-wrap { max-height:72vh; overflow:auto; }
-  .matches { display:flex; flex-direction:column; gap:8px; max-height:72vh;
-    overflow-y:auto; padding-right:4px; }
+  .matches { display:flex; flex-direction:column; gap:8px; }
   .match { border:1px solid var(--line); border-radius:12px; padding:11px 13px;
     background:rgba(255,255,255,0.02); }
   .match:hover { border-color:var(--line-strong); }
@@ -59,7 +77,6 @@
   .match-decks .side { flex:1; min-width:0; }
   .match-decks .vs { color:var(--faint); font-size:11px; align-self:center; }
   .match-meta { margin-top:9px; font-size:11px; line-height:1.5; }
-  @media (max-width:900px) { .dash { grid-template-columns:1fr; } .col-data { position:static; } }
   h1 {
     font-family:"Sora", sans-serif; font-size:26px; font-weight:700;
     letter-spacing:-0.02em; margin:0 0 6px;
@@ -168,7 +185,10 @@
     <a class="active" href="{{ url_for('pokemon.form') }}">Pokemon</a>
   </nav>
 
-  <h1>{{ 'Edit match' if edit_id else 'Log a Pokemon TCG Pocket match' }}</h1>
+  <div class="pagehead">
+    <h1>{{ 'Edit match' if edit_id else 'Log a Pokemon TCG Pocket match' }}</h1>
+    <button type="button" class="history-btn" id="open-drawer">History &amp; stats{% if stats.games %} <span class="pill">{{ stats.games }}</span>{% endif %}</button>
+  </div>
   {% if edit_id %}
     <p class="muted" style="margin:-8px 0 16px">
       Editing an existing match — change what's wrong and save.
@@ -181,18 +201,6 @@
       {% if cat == 'ok' %}<div class="flash ok">{{ msg }}</div>{% endif %}
     {% endfor %}
   {% endwith %}
-
-  {% if stats.games and not edit_id %}
-  <div class="stats">
-    <div class="stat"><div class="k">Games</div><div class="v">{{ stats.games }}</div></div>
-    <div class="stat"><div class="k">Record</div>
-      <div class="v">{{ stats.wins }}<small>W</small> &middot; {{ stats.losses }}<small>L</small>{% if stats.draws %} &middot; {{ stats.draws }}<small>D</small>{% endif %}</div></div>
-    <div class="stat"><div class="k">Win rate</div>
-      <div class="v">{{ stats.winrate ~ '%' if stats.winrate is not none else '—' }}</div></div>
-    <div class="stat"><div class="k">Your heads</div>
-      <div class="v">{{ coin.me.heads_pct ~ '%' if coin.me.heads_pct is not none else '—' }}</div></div>
-  </div>
-  {% endif %}
 
   {% if pending_new %}
     <div class="banner">
@@ -207,9 +215,6 @@
       </div>
     </div>
   {% endif %}
-
-  <div class="dash">
-  <div class="col-form">
 
   {# ---- Autocomplete sources ---- #}
   <datalist id="dl_deck">{% for v in lists.deck_kind %}<option value="{{ v }}">{% endfor %}</datalist>
@@ -345,9 +350,25 @@
     Your deck, date, event and set carry over to the next match so a run with the same deck needs no retyping.
   </p>
 
-  </div>{# /col-form #}
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <h2>History &amp; stats</h2>
+      <button type="button" class="drawer-close" id="close-drawer" aria-label="Close">&times;</button>
+    </div>
+    <div class="drawer-body">
 
-  <div class="col-data">
+    {% if stats.games %}
+    <div class="stats">
+      <div class="stat"><div class="k">Games</div><div class="v">{{ stats.games }}</div></div>
+      <div class="stat"><div class="k">Record</div>
+        <div class="v">{{ stats.wins }}<small>W</small> &middot; {{ stats.losses }}<small>L</small>{% if stats.draws %} &middot; {{ stats.draws }}<small>D</small>{% endif %}</div></div>
+      <div class="stat"><div class="k">Win rate</div>
+        <div class="v">{{ stats.winrate ~ '%' if stats.winrate is not none else '—' }}</div></div>
+      <div class="stat"><div class="k">Your heads</div>
+        <div class="v">{{ coin.me.heads_pct ~ '%' if coin.me.heads_pct is not none else '—' }}</div></div>
+    </div>
+    {% endif %}
+
     <div class="subtabs">
       <button type="button" class="subtab active" data-panel="p-recent">Recent</button>
       <button type="button" class="subtab" data-panel="p-rank">By rank</button>
@@ -437,8 +458,9 @@
     {% endif %}
     </div>{# /p-coin #}
 
-  </div>{# /col-data #}
-  </div>{# /dash #}
+    </div>{# /drawer-body #}
+  </aside>{# /drawer #}
+  <div class="scrim" id="scrim"></div>
 </div>{# /wrap #}
 
 <script>
@@ -457,8 +479,26 @@
     });
   })();
 
-  // Right-column sub-tabs (Recent / By rank / Coin flips) — show one panel at
-  // a time so the page stays a single screen instead of a long stack.
+  // History & stats live in a slide-over drawer so the default page is just
+  // the form. Button opens it; the scrim, the × , or Escape close it.
+  (function () {
+    var drawer = document.getElementById('drawer');
+    var scrim = document.getElementById('scrim');
+    if (!drawer || !scrim) return;
+    function setOpen(on) {
+      drawer.classList.toggle('open', on);
+      scrim.classList.toggle('open', on);
+      drawer.setAttribute('aria-hidden', on ? 'false' : 'true');
+    }
+    var openBtn = document.getElementById('open-drawer');
+    var closeBtn = document.getElementById('close-drawer');
+    if (openBtn) openBtn.addEventListener('click', function () { setOpen(true); });
+    if (closeBtn) closeBtn.addEventListener('click', function () { setOpen(false); });
+    scrim.addEventListener('click', function () { setOpen(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+  })();
+
+  // Sub-tabs (Recent / By rank / Coin flips) — show one panel at a time.
   (function () {
     var tabs = document.querySelectorAll('.subtab');
     var panels = document.querySelectorAll('.panel');
