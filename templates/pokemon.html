@@ -32,7 +32,34 @@
       linear-gradient(180deg, var(--bg-2), var(--bg));
     background-attachment:fixed;
   }
-  .wrap { max-width:820px; margin:0 auto; padding:40px 20px 96px; }
+  .wrap { max-width:1120px; margin:0 auto; padding:40px 20px 96px; }
+  .dash { display:grid; grid-template-columns:minmax(0,1.02fr) minmax(0,0.98fr);
+    gap:20px; align-items:start; }
+  .col-data { position:sticky; top:20px; }
+  .subtabs { display:flex; gap:4px; padding:4px; margin-bottom:12px;
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    box-shadow:var(--glow); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+  .subtab { flex:1; background:none; border:0; border-radius:9px; padding:8px 10px;
+    color:var(--muted); font:inherit; font-weight:500; font-size:13px; cursor:pointer;
+    transition:color .12s, background .12s; }
+  .subtab:hover { color:var(--ink); }
+  .subtab.active { color:#fff;
+    background:linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 72%, #000));
+    box-shadow:0 6px 16px -8px color-mix(in srgb, var(--accent) 80%, transparent); }
+  .col-data .recent-wrap { max-height:72vh; overflow:auto; }
+  .matches { display:flex; flex-direction:column; gap:8px; max-height:72vh;
+    overflow-y:auto; padding-right:4px; }
+  .match { border:1px solid var(--line); border-radius:12px; padding:11px 13px;
+    background:rgba(255,255,255,0.02); }
+  .match:hover { border-color:var(--line-strong); }
+  .match-top { display:flex; align-items:center; gap:9px; }
+  .mdate { font-family:ui-monospace, SFMono-Regular, monospace; font-size:12px; color:var(--muted); }
+  .match-actions { margin-left:auto; display:flex; align-items:center; gap:4px; white-space:nowrap; }
+  .match-decks { display:flex; align-items:flex-start; gap:10px; margin-top:9px; }
+  .match-decks .side { flex:1; min-width:0; }
+  .match-decks .vs { color:var(--faint); font-size:11px; align-self:center; }
+  .match-meta { margin-top:9px; font-size:11px; line-height:1.5; }
+  @media (max-width:900px) { .dash { grid-template-columns:1fr; } .col-data { position:static; } }
   h1 {
     font-family:"Sora", sans-serif; font-size:26px; font-weight:700;
     letter-spacing:-0.02em; margin:0 0 6px;
@@ -181,6 +208,9 @@
     </div>
   {% endif %}
 
+  <div class="dash">
+  <div class="col-form">
+
   {# ---- Autocomplete sources ---- #}
   <datalist id="dl_deck">{% for v in lists.deck_kind %}<option value="{{ v }}">{% endfor %}</datalist>
   <datalist id="dl_mvp">{% for v in lists.mvp_card %}<option value="{{ v }}">{% endfor %}</datalist>
@@ -315,85 +345,101 @@
     Your deck, date, event and set carry over to the next match so a run with the same deck needs no retyping.
   </p>
 
-  <h2>Recent</h2>
-  <div class="recent-wrap">
-  <table>
-    <tr>
-      <th>Date</th><th>Event</th><th>My deck</th><th>Opponent</th>
-      <th>First</th><th>Pts</th><th>Result</th><th></th>
-    </tr>
+  </div>{# /col-form #}
+
+  <div class="col-data">
+    <div class="subtabs">
+      <button type="button" class="subtab active" data-panel="p-recent">Recent</button>
+      <button type="button" class="subtab" data-panel="p-rank">By rank</button>
+      <button type="button" class="subtab" data-panel="p-coin">Coin flips</button>
+    </div>
+
+    <div class="panel" id="p-recent">
+    <div class="matches">
     {% for m in recent %}
-    <tr>
-      <td style="white-space:nowrap">{{ m.played_at }}</td>
-      <td>{{ m.event or '—' }}
-        {%- if m.rank %}<div class="muted">🏅 {{ m.rank }}</div>{% endif %}
-        {%- if m.set_name %}<div class="muted">{{ m.set_name }}</div>{% endif %}</td>
-      <td>
-        <div class="deck">{{ m.my_deck_kind }}</div>
-        <div class="ens">{% for e in [m.my_energy_1, m.my_energy_2, m.my_energy_3] if e %}<span class="en en-{{ e|lower }}">{{ e }}</span>{% endfor %}</div>
-      </td>
-      <td>
-        <div class="deck">{{ m.opp_deck_kind }}</div>
-        <div class="ens">{% for e in [m.opp_energy_1, m.opp_energy_2, m.opp_energy_3] if e %}<span class="en en-{{ e|lower }}">{{ e }}</span>{% endfor %}</div>
-      </td>
-      <td>{{ 'Yes' if m.went_first else 'No' }}</td>
-      <td style="white-space:nowrap">
-        {%- if m.my_points is not none or m.opp_points is not none -%}
-          {{ m.my_points if m.my_points is not none else '–' }}&ndash;{{ m.opp_points if m.opp_points is not none else '–' }}
-        {%- else -%}—{%- endif -%}
-      </td>
-      <td><span class="res res-{{ m.result }}">{{ {'win':'W','loss':'L','draw':'D'}.get(m.result, '?') }}</span></td>
-      <td style="white-space:nowrap">
-        <a class="edit" href="{{ url_for('pokemon.edit', match_id=m.id) }}">Edit</a>
-        <form method="post" action="{{ url_for('pokemon.delete', match_id=m.id) }}" onsubmit="return confirm('Delete this match?')" style="display:inline">
-          <button class="del" type="submit">&times;</button>
-        </form>
-      </td>
-    </tr>
+      <div class="match">
+        <div class="match-top">
+          <span class="mdate">{{ m.played_at }}</span>
+          <span class="res res-{{ m.result }}">{{ {'win':'W','loss':'L','draw':'D'}.get(m.result, '?') }}</span>
+          <span class="match-actions">
+            <a class="edit" href="{{ url_for('pokemon.edit', match_id=m.id) }}">Edit</a>
+            <form method="post" action="{{ url_for('pokemon.delete', match_id=m.id) }}" onsubmit="return confirm('Delete this match?')" style="display:inline">
+              <button class="del" type="submit">&times;</button>
+            </form>
+          </span>
+        </div>
+        <div class="match-decks">
+          <div class="side">
+            <div class="deck">{{ m.my_deck_kind }}</div>
+            <div class="ens">{% for e in [m.my_energy_1, m.my_energy_2, m.my_energy_3] if e %}<span class="en en-{{ e|lower }}">{{ e }}</span>{% endfor %}</div>
+          </div>
+          <span class="vs">vs</span>
+          <div class="side">
+            <div class="deck">{{ m.opp_deck_kind }}</div>
+            <div class="ens">{% for e in [m.opp_energy_1, m.opp_energy_2, m.opp_energy_3] if e %}<span class="en en-{{ e|lower }}">{{ e }}</span>{% endfor %}</div>
+          </div>
+        </div>
+        <div class="match-meta muted">
+          {{ 'Went 1st' if m.went_first else 'Went 2nd' }}
+          {%- if m.my_points is not none or m.opp_points is not none %} &middot; {{ m.my_points if m.my_points is not none else '–' }}&ndash;{{ m.opp_points if m.opp_points is not none else '–' }}{% endif %}
+          {%- if m.event %} &middot; {{ m.event }}{% endif %}
+          {%- if m.rank %} &middot; 🏅 {{ m.rank }}{% endif %}
+          {%- if m.set_name %} &middot; {{ m.set_name }}{% endif %}
+        </div>
+      </div>
     {% else %}
-    <tr><td colspan="8" class="muted">No matches logged yet.</td></tr>
+      <p class="muted" style="padding:6px 2px">No matches logged yet.</p>
     {% endfor %}
-  </table>
-  </div>
+    </div>
+    </div>{# /p-recent #}
 
-  {% if rank_breakdown %}
-  <h2>Games by rank</h2>
-  <div class="recent-wrap">
-  <table>
-    <tr><th>Set</th><th>Rank</th><th>Games</th></tr>
-    {% for set_name, rows in rank_breakdown.items() %}
-      {% for rank, games in rows %}
-      <tr>
-        <td>{% if loop.first %}{{ set_name }}{% endif %}</td>
-        <td>🏅 {{ rank }}</td>
-        <td>{{ games }}</td>
-      </tr>
+    <div class="panel" id="p-rank" hidden>
+    {% if rank_breakdown %}
+    <div class="recent-wrap">
+    <table>
+      <tr><th>Set</th><th>Rank</th><th>Games</th></tr>
+      {% for set_name, rows in rank_breakdown.items() %}
+        {% for rank, games in rows %}
+        <tr>
+          <td>{% if loop.first %}{{ set_name }}{% endif %}</td>
+          <td>🏅 {{ rank }}</td>
+          <td>{{ games }}</td>
+        </tr>
+        {% endfor %}
       {% endfor %}
-    {% endfor %}
-  </table>
-  </div>
-  {% endif %}
+    </table>
+    </div>
+    {% else %}
+    <p class="muted" style="padding:6px 2px">No ranked games logged yet.</p>
+    {% endif %}
+    </div>{# /p-rank #}
 
-  {% if coin.me.total or coin.opp.total %}
-  <h2>Coin flips</h2>
-  <div class="recent-wrap">
-  <table>
-    <tr><th></th><th>Heads</th><th>Tails</th><th>Total</th><th>Heads&nbsp;%</th></tr>
-    <tr>
-      <td class="deck">You</td>
-      <td>{{ coin.me.heads }}</td><td>{{ coin.me.tails }}</td><td>{{ coin.me.total }}</td>
-      <td>{{ coin.me.heads_pct ~ '%' if coin.me.heads_pct is not none else '—' }}</td>
-    </tr>
-    <tr>
-      <td class="deck">Opponents</td>
-      <td>{{ coin.opp.heads }}</td><td>{{ coin.opp.tails }}</td><td>{{ coin.opp.total }}</td>
-      <td>{{ coin.opp.heads_pct ~ '%' if coin.opp.heads_pct is not none else '—' }}</td>
-    </tr>
-  </table>
-  </div>
-  <p class="muted" style="margin-top:6px">A fair coin lands ~50% heads over time — anything higher is the luck (or the curse) talking.</p>
-  {% endif %}
-</div>
+    <div class="panel" id="p-coin" hidden>
+    {% if coin.me.total or coin.opp.total %}
+    <div class="recent-wrap">
+    <table>
+      <tr><th></th><th>Heads</th><th>Tails</th><th>Total</th><th>Heads&nbsp;%</th></tr>
+      <tr>
+        <td class="deck">You</td>
+        <td>{{ coin.me.heads }}</td><td>{{ coin.me.tails }}</td><td>{{ coin.me.total }}</td>
+        <td>{{ coin.me.heads_pct ~ '%' if coin.me.heads_pct is not none else '—' }}</td>
+      </tr>
+      <tr>
+        <td class="deck">Opponents</td>
+        <td>{{ coin.opp.heads }}</td><td>{{ coin.opp.tails }}</td><td>{{ coin.opp.total }}</td>
+        <td>{{ coin.opp.heads_pct ~ '%' if coin.opp.heads_pct is not none else '—' }}</td>
+      </tr>
+    </table>
+    </div>
+    <p class="muted" style="margin-top:8px">A fair coin lands ~50% heads over time — anything higher is the luck (or the curse) talking.</p>
+    {% else %}
+    <p class="muted" style="padding:6px 2px">No coin flips logged yet.</p>
+    {% endif %}
+    </div>{# /p-coin #}
+
+  </div>{# /col-data #}
+  </div>{# /dash #}
+</div>{# /wrap #}
 
 <script>
   // The server stamps "today" in its own timezone (UTC on Render), which reads
@@ -408,6 +454,22 @@
     const serverToday = "{{ today }}";
     document.querySelectorAll('input[type=date]').forEach(function (inp) {
       if (inp.value === serverToday) inp.value = localToday;
+    });
+  })();
+
+  // Right-column sub-tabs (Recent / By rank / Coin flips) — show one panel at
+  // a time so the page stays a single screen instead of a long stack.
+  (function () {
+    var tabs = document.querySelectorAll('.subtab');
+    var panels = document.querySelectorAll('.panel');
+    tabs.forEach(function (t) {
+      t.addEventListener('click', function () {
+        tabs.forEach(function (x) { x.classList.remove('active'); });
+        panels.forEach(function (p) { p.hidden = true; });
+        t.classList.add('active');
+        var el = document.getElementById(t.dataset.panel);
+        if (el) el.hidden = false;
+      });
     });
   })();
 
