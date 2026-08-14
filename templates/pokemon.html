@@ -296,6 +296,35 @@
     ev.addEventListener('change', sync);
     sync();
   })();
+
+  // Deck kind -> [energy1, energy2, energy3], learned from games already
+  // logged (both sides of the table). Entering a deck you've played before
+  // pre-fills its energies; a brand-new deck stays manual until logged once.
+  // Only fires when you change the deck field, so carried or hand-picked
+  // energies are never overwritten on page load.
+  (function () {
+    const DECK_ENERGIES = {{ deck_energies | tojson }};
+    const lookup = {};
+    Object.keys(DECK_ENERGIES).forEach(function (k) {
+      lookup[k.trim().toLowerCase()] = DECK_ENERGIES[k];
+    });
+    function wire(deckName, energyPrefix) {
+      const deck = document.querySelector('[name="' + deckName + '"]');
+      if (!deck) return;
+      const sels = [1, 2, 3].map(function (n) {
+        return document.querySelector('[name="' + energyPrefix + n + '"]');
+      });
+      function fill() {
+        const combo = lookup[(deck.value || '').trim().toLowerCase()];
+        if (!combo) return;
+        sels.forEach(function (sel, i) { if (sel) sel.value = combo[i] || ''; });
+      }
+      deck.addEventListener('change', fill);
+      deck.addEventListener('input', fill);
+    }
+    wire('my_deck_kind', 'my_energy_');
+    wire('opp_deck_kind', 'opp_energy_');
+  })();
 </script>
 </body>
 </html>

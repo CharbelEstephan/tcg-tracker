@@ -140,6 +140,32 @@ def get_rank_breakdown():
         return out
 
 
+def get_deck_energies():
+    """Deck kind -> [energy_1, energy_2, energy_3], learned from what you've
+    logged on both sides of the table. Picking a deck you've recorded before
+    can then pre-fill its energies. If a deck has been logged with different
+    energy sets (a typo, usually), the most frequent one wins."""
+    from collections import defaultdict, Counter
+    combos = defaultdict(Counter)
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT my_deck_kind,  my_energy_1,  my_energy_2,  my_energy_3
+            FROM matches_pokemon
+            UNION ALL
+            SELECT opp_deck_kind, opp_energy_1, opp_energy_2, opp_energy_3
+            FROM matches_pokemon
+            """
+        )
+        for deck, e1, e2, e3 in cur.fetchall():
+            if deck and e1:
+                combos[deck][(e1, e2, e3)] += 1
+    return {
+        deck: [e or "" for e in c.most_common(1)[0][0]]
+        for deck, c in combos.items()
+    }
+
+
 @bp.route("/pokemon", methods=["GET"])
 def form():
     return render_template(
@@ -151,6 +177,7 @@ def form():
         carry={k: request.args.get(k, "") for k in STICKY},
         recent=get_recent(),
         rank_breakdown=get_rank_breakdown(),
+        deck_energies=get_deck_energies(),
     )
 
 
@@ -192,6 +219,7 @@ def submit():
             today=dt.date.today().isoformat(), pending_new=pending_new,
             carry={k: "" for k in STICKY}, recent=get_recent(),
             rank_breakdown=get_rank_breakdown(),
+            deck_energies=get_deck_energies(),
         ), 200
 
     def energy(name):
