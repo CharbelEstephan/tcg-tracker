@@ -63,6 +63,9 @@
   .del { background:transparent; border:1px solid var(--line); color:var(--muted);
          padding:3px 9px; border-radius:6px; font-weight:700; font-size:14px; line-height:1; }
   .del:hover { color:#f6a5a0; border-color:#6b2b2b; }
+  .edit { display:inline-block; margin-right:6px; padding:3px 9px; border-radius:6px;
+          border:1px solid var(--line); color:var(--muted); text-decoration:none; font-size:12px; }
+  .edit:hover { color:var(--fg); border-color:var(--accent); }
   .recent-wrap { overflow-x:auto; }
 </style>
 </head>
@@ -76,7 +79,13 @@
     <a class="active" href="{{ url_for('pokemon.form') }}">Pokemon</a>
   </nav>
 
-  <h1>Log a Pokemon TCG Pocket match</h1>
+  <h1>{{ 'Edit match' if edit_id else 'Log a Pokemon TCG Pocket match' }}</h1>
+  {% if edit_id %}
+    <p class="muted" style="margin:-8px 0 16px">
+      Editing an existing match — change what's wrong and save.
+      <a href="{{ url_for('pokemon.form') }}" style="color:var(--accent)">Cancel</a>
+    </p>
+  {% endif %}
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for cat, msg in messages %}
@@ -115,44 +124,44 @@
     </select>
   {% endmacro %}
 
-  <form id="matchform" method="post" action="{{ url_for('pokemon.form') }}">
+  <form id="matchform" method="post" action="{{ url_for('pokemon.edit', match_id=edit_id) if edit_id else url_for('pokemon.form') }}">
 
     <fieldset>
       <legend>Context</legend>
       <div class="grid-3">
         <div class="req"><label>Date</label>
-          <input type="date" name="played_at" value="{{ request.form.get('played_at') or carry.get('played_at') or today }}"></div>
+          <input type="date" name="played_at" value="{{ request.form.get('played_at') or initial.get('played_at') or carry.get('played_at') or today }}"></div>
         <div><label>Event</label>
-          <input id="event-input" name="event" list="dl_event" value="{{ request.form.get('event') or carry.get('event','') }}" placeholder="Emblem Event"></div>
+          <input id="event-input" name="event" list="dl_event" value="{{ request.form.get('event') or initial.get('event') or carry.get('event','') }}" placeholder="Emblem Event"></div>
         <div><label>Set</label>
-          <input name="set_name" list="dl_set" value="{{ request.form.get('set_name') or carry.get('set_name','') }}" placeholder="Ruler of the Skies"></div>
+          <input name="set_name" list="dl_set" value="{{ request.form.get('set_name') or initial.get('set_name') or carry.get('set_name','') }}" placeholder="Ruler of the Skies"></div>
       </div>
       {# Rank only matters for Ranked play — shown when Event is "Ranked". #}
       <div class="row" id="rank-row" hidden style="margin-top:12px">
         <label>Current rank <span class="muted">— logged for Ranked games</span></label>
-        <input name="rank" list="dl_rank" value="{{ request.form.get('rank') or carry.get('rank','') }}" placeholder="e.g. Master Ball">
+        <input name="rank" list="dl_rank" value="{{ request.form.get('rank') or initial.get('rank') or carry.get('rank','') }}" placeholder="e.g. Master Ball">
       </div>
     </fieldset>
 
     <fieldset>
       <legend>Your deck</legend>
       <div class="row req"><label>Deck kind</label>
-        <input name="my_deck_kind" list="dl_deck" required value="{{ request.form.get('my_deck_kind') or carry.get('my_deck_kind','') }}" placeholder="Mega Rayquaza"></div>
+        <input name="my_deck_kind" list="dl_deck" required value="{{ request.form.get('my_deck_kind') or initial.get('my_deck_kind') or carry.get('my_deck_kind','') }}" placeholder="Mega Rayquaza"></div>
       <div class="grid-3">
-        <div class="req"><label>Energy 1</label>{{ energy_select('my_energy_1', required=true, selected=request.form.get('my_energy_1') or carry.get('my_energy_1','')) }}</div>
-        <div><label>Energy 2</label>{{ energy_select('my_energy_2', selected=request.form.get('my_energy_2') or carry.get('my_energy_2','')) }}</div>
-        <div><label>Energy 3</label>{{ energy_select('my_energy_3', selected=request.form.get('my_energy_3') or carry.get('my_energy_3','')) }}</div>
+        <div class="req"><label>Energy 1</label>{{ energy_select('my_energy_1', required=true, selected=request.form.get('my_energy_1') or initial.get('my_energy_1') or carry.get('my_energy_1','')) }}</div>
+        <div><label>Energy 2</label>{{ energy_select('my_energy_2', selected=request.form.get('my_energy_2') or initial.get('my_energy_2') or carry.get('my_energy_2','')) }}</div>
+        <div><label>Energy 3</label>{{ energy_select('my_energy_3', selected=request.form.get('my_energy_3') or initial.get('my_energy_3') or carry.get('my_energy_3','')) }}</div>
       </div>
     </fieldset>
 
     <fieldset>
       <legend>Opponent deck</legend>
       <div class="row req"><label>Deck kind</label>
-        <input name="opp_deck_kind" list="dl_deck" required value="{{ request.form.get('opp_deck_kind','') }}"></div>
+        <input name="opp_deck_kind" list="dl_deck" required value="{{ request.form.get('opp_deck_kind') or initial.get('opp_deck_kind','') }}"></div>
       <div class="grid-3">
-        <div class="req"><label>Energy 1</label>{{ energy_select('opp_energy_1', required=true, selected=request.form.get('opp_energy_1','')) }}</div>
-        <div><label>Energy 2</label>{{ energy_select('opp_energy_2', selected=request.form.get('opp_energy_2','')) }}</div>
-        <div><label>Energy 3</label>{{ energy_select('opp_energy_3', selected=request.form.get('opp_energy_3','')) }}</div>
+        <div class="req"><label>Energy 1</label>{{ energy_select('opp_energy_1', required=true, selected=request.form.get('opp_energy_1') or initial.get('opp_energy_1','')) }}</div>
+        <div><label>Energy 2</label>{{ energy_select('opp_energy_2', selected=request.form.get('opp_energy_2') or initial.get('opp_energy_2','')) }}</div>
+        <div><label>Energy 3</label>{{ energy_select('opp_energy_3', selected=request.form.get('opp_energy_3') or initial.get('opp_energy_3','')) }}</div>
       </div>
     </fieldset>
 
@@ -162,42 +171,42 @@
         <div class="req"><label>Result</label>
           <select name="result" required>
             {% for r in ['win','loss','draw'] %}
-              <option value="{{ r }}" {{ 'selected' if request.form.get('result')==r }}>{{ r|capitalize }}</option>
+              <option value="{{ r }}" {{ 'selected' if (request.form.get('result') or initial.get('result'))==r }}>{{ r|capitalize }}</option>
             {% endfor %}
           </select></div>
         <div class="req"><label>Went first / second</label>
           <div class="radios">
             <label><input type="radio" name="went_first" value="first"
-              {{ 'checked' if request.form.get('went_first','first')=='first' }}> First</label>
+              {{ 'checked' if (request.form.get('went_first') or initial.get('went_first') or 'first')=='first' }}> First</label>
             <label><input type="radio" name="went_first" value="second"
-              {{ 'checked' if request.form.get('went_first')=='second' }}> Second</label>
+              {{ 'checked' if (request.form.get('went_first') or initial.get('went_first'))=='second' }}> Second</label>
           </div></div>
       </div>
       <div class="grid-3" style="margin-top:12px">
         <div><label>My points (0–3)</label>
           <select name="my_points">
             {% for p in ['','0','1','2','3'] %}
-              <option value="{{ p }}" {{ 'selected' if request.form.get('my_points')==p }}>{{ p or '—' }}</option>
+              <option value="{{ p }}" {{ 'selected' if (request.form.get('my_points') or initial.get('my_points',''))==p }}>{{ p or '—' }}</option>
             {% endfor %}
           </select></div>
         <div><label>Their points (0–3)</label>
           <select name="opp_points">
             {% for p in ['','0','1','2','3'] %}
-              <option value="{{ p }}" {{ 'selected' if request.form.get('opp_points')==p }}>{{ p or '—' }}</option>
+              <option value="{{ p }}" {{ 'selected' if (request.form.get('opp_points') or initial.get('opp_points',''))==p }}>{{ p or '—' }}</option>
             {% endfor %}
           </select></div>
         <div><label>Total turns</label>
-          <input type="number" name="total_turns" min="0" value="{{ request.form.get('total_turns','') }}"></div>
+          <input type="number" name="total_turns" min="0" value="{{ request.form.get('total_turns') or initial.get('total_turns','') }}"></div>
       </div>
       <div class="grid" style="margin-top:12px">
         <div><label>Winner's MVP card</label>
-          <input name="mvp_card" list="dl_mvp" value="{{ request.form.get('mvp_card','') }}"></div>
+          <input name="mvp_card" list="dl_mvp" value="{{ request.form.get('mvp_card') or initial.get('mvp_card','') }}"></div>
         <div><label>Location</label>
-          <input name="location" list="dl_loc" value="{{ request.form.get('location') or carry.get('location','') }}"></div>
+          <input name="location" list="dl_loc" value="{{ request.form.get('location') or initial.get('location') or carry.get('location','') }}"></div>
       </div>
       <div class="radios" style="margin-top:12px">
         <label><input type="checkbox" name="surrendered"
-          {{ 'checked' if request.form.get('surrendered')=='on' }}> Surrender</label>
+          {{ 'checked' if (request.form.get('surrendered') or initial.get('surrendered'))=='on' }}> Surrender</label>
       </div>
     </fieldset>
 
@@ -207,22 +216,23 @@
         <div>
           <label>Your flips — heads / tails</label>
           <div class="grid-2col">
-            <input type="number" name="my_heads" min="0" value="{{ request.form.get('my_heads','') }}" placeholder="Heads">
-            <input type="number" name="my_tails" min="0" value="{{ request.form.get('my_tails','') }}" placeholder="Tails">
+            <input type="number" name="my_heads" min="0" value="{{ request.form.get('my_heads') or initial.get('my_heads','') }}" placeholder="Heads">
+            <input type="number" name="my_tails" min="0" value="{{ request.form.get('my_tails') or initial.get('my_tails','') }}" placeholder="Tails">
           </div>
         </div>
         <div>
           <label>Opponent flips — heads / tails</label>
           <div class="grid-2col">
-            <input type="number" name="opp_heads" min="0" value="{{ request.form.get('opp_heads','') }}" placeholder="Heads">
-            <input type="number" name="opp_tails" min="0" value="{{ request.form.get('opp_tails','') }}" placeholder="Tails">
+            <input type="number" name="opp_heads" min="0" value="{{ request.form.get('opp_heads') or initial.get('opp_heads','') }}" placeholder="Heads">
+            <input type="number" name="opp_tails" min="0" value="{{ request.form.get('opp_tails') or initial.get('opp_tails','') }}" placeholder="Tails">
           </div>
         </div>
       </div>
       <p class="muted" style="margin:8px 0 0">Count of heads and tails each side flipped this game. Leave at zero if none.</p>
     </fieldset>
 
-    <button type="submit" class="primary">Log match</button>
+    <button type="submit" class="primary">{{ 'Save changes' if edit_id else 'Log match' }}</button>
+    {% if edit_id %}<a class="ghost" href="{{ url_for('pokemon.form') }}" style="margin-left:8px;text-decoration:none;display:inline-block;padding:11px 18px;border-radius:8px">Cancel</a>{% endif %}
   </form>
 
   <p class="muted" style="margin-top:14px">
@@ -259,8 +269,9 @@
         {%- else -%}—{%- endif -%}
       </td>
       <td><span class="res res-{{ m.result }}">{{ {'win':'W','loss':'L','draw':'D'}.get(m.result, '?') }}</span></td>
-      <td>
-        <form method="post" action="{{ url_for('pokemon.delete', match_id=m.id) }}" onsubmit="return confirm('Delete this match?')">
+      <td style="white-space:nowrap">
+        <a class="edit" href="{{ url_for('pokemon.edit', match_id=m.id) }}">Edit</a>
+        <form method="post" action="{{ url_for('pokemon.delete', match_id=m.id) }}" onsubmit="return confirm('Delete this match?')" style="display:inline">
           <button class="del" type="submit">&times;</button>
         </form>
       </td>
