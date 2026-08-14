@@ -166,6 +166,29 @@ def get_deck_energies():
     }
 
 
+def get_coin_summary():
+    """Running heads/tails totals for you vs opponents across every game, so
+    you can see how the coin has treated each side over time."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(my_heads), 0),  COALESCE(SUM(my_tails), 0),
+                   COALESCE(SUM(opp_heads), 0), COALESCE(SUM(opp_tails), 0)
+            FROM matches_pokemon
+            """
+        )
+        mh, mt, oh, ot = cur.fetchone()
+
+    def side(heads, tails):
+        total = heads + tails
+        return {
+            "heads": heads, "tails": tails, "total": total,
+            "heads_pct": round(100 * heads / total, 1) if total else None,
+        }
+
+    return {"me": side(mh, mt), "opp": side(oh, ot)}
+
+
 @bp.route("/pokemon", methods=["GET"])
 def form():
     return render_template(
@@ -178,6 +201,7 @@ def form():
         recent=get_recent(),
         rank_breakdown=get_rank_breakdown(),
         deck_energies=get_deck_energies(),
+        coin=get_coin_summary(),
     )
 
 
@@ -220,10 +244,15 @@ def submit():
             carry={k: "" for k in STICKY}, recent=get_recent(),
             rank_breakdown=get_rank_breakdown(),
             deck_energies=get_deck_energies(),
+            coin=get_coin_summary(),
         ), 200
 
     def energy(name):
         return (f.get(name) or "").strip() or None
+
+    def count(name):
+        # Coin-flip counts: blank or junk -> 0, never negative.
+        return max(_int(f.get(name)) or 0, 0)
 
     row = (
         f.get("played_at") or None,
@@ -240,6 +269,8 @@ def submit():
         f.get("surrendered") == "on",
         resolved["location"],
         resolved["rank"],
+        count("my_heads"), count("my_tails"),
+        count("opp_heads"), count("opp_tails"),
     )
 
     with get_conn() as conn, conn.cursor() as cur:
@@ -249,9 +280,11 @@ def submit():
               (played_at, my_deck_kind, my_energy_1, my_energy_2, my_energy_3,
                opp_deck_kind, opp_energy_1, opp_energy_2, opp_energy_3,
                event, set_name, result, my_points, opp_points,
-               went_first, mvp_card, total_turns, surrendered, location, rank)
+               went_first, mvp_card, total_turns, surrendered, location, rank,
+               my_heads, my_tails, opp_heads, opp_tails)
             VALUES (COALESCE(%s, CURRENT_DATE), %s,%s,%s,%s, %s,%s,%s,%s,
-                    %s,%s, %s,%s,%s, %s,%s,%s,%s,%s, %s)
+                    %s,%s, %s,%s,%s, %s,%s,%s,%s,%s, %s,
+                    %s,%s,%s,%s)
             """,
             row,
         )

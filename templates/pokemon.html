@@ -26,6 +26,7 @@
            text-transform:uppercase; letter-spacing:.06em; }
   .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .grid-2col { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
   input, select { width:100%; padding:9px 10px; border-radius:7px;
                   border:1px solid var(--line); background:#0f1319;
@@ -200,6 +201,27 @@
       </div>
     </fieldset>
 
+    <fieldset>
+      <legend>Coin flips</legend>
+      <div class="grid">
+        <div>
+          <label>Your flips — heads / tails</label>
+          <div class="grid-2col">
+            <input type="number" name="my_heads" min="0" value="{{ request.form.get('my_heads','') }}" placeholder="Heads">
+            <input type="number" name="my_tails" min="0" value="{{ request.form.get('my_tails','') }}" placeholder="Tails">
+          </div>
+        </div>
+        <div>
+          <label>Opponent flips — heads / tails</label>
+          <div class="grid-2col">
+            <input type="number" name="opp_heads" min="0" value="{{ request.form.get('opp_heads','') }}" placeholder="Heads">
+            <input type="number" name="opp_tails" min="0" value="{{ request.form.get('opp_tails','') }}" placeholder="Tails">
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="margin:8px 0 0">Count of heads and tails each side flipped this game. Leave at zero if none.</p>
+    </fieldset>
+
     <button type="submit" class="primary">Log match</button>
   </form>
 
@@ -265,6 +287,26 @@
     {% endfor %}
   </table>
   </div>
+  {% endif %}
+
+  {% if coin.me.total or coin.opp.total %}
+  <h2>Coin flips</h2>
+  <div class="recent-wrap">
+  <table>
+    <tr><th></th><th>Heads</th><th>Tails</th><th>Total</th><th>Heads&nbsp;%</th></tr>
+    <tr>
+      <td class="deck">You</td>
+      <td>{{ coin.me.heads }}</td><td>{{ coin.me.tails }}</td><td>{{ coin.me.total }}</td>
+      <td>{{ coin.me.heads_pct ~ '%' if coin.me.heads_pct is not none else '—' }}</td>
+    </tr>
+    <tr>
+      <td class="deck">Opponents</td>
+      <td>{{ coin.opp.heads }}</td><td>{{ coin.opp.tails }}</td><td>{{ coin.opp.total }}</td>
+      <td>{{ coin.opp.heads_pct ~ '%' if coin.opp.heads_pct is not none else '—' }}</td>
+    </tr>
+  </table>
+  </div>
+  <p class="muted" style="margin-top:6px">A fair coin lands ~50% heads over time — anything higher is the luck (or the curse) talking.</p>
   {% endif %}
 </div>
 
