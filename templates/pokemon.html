@@ -464,6 +464,21 @@
 </div>{# /wrap #}
 
 <script>
+  // Keep-alive heartbeat — ping a trivial endpoint every 5 minutes while this
+  // page is open so Render's free tier doesn't spin the service down between
+  // logging matches. Pauses while the tab is hidden, resumes on return.
+  (function () {
+    const FIVE_MIN = 5 * 60 * 1000;
+    let timer = null;
+    const beat = () => { fetch('/ping', { cache: 'no-store' }).catch(() => {}); };
+    const start = () => { if (!timer) { beat(); timer = setInterval(beat, FIVE_MIN); } };
+    const stop = () => { clearInterval(timer); timer = null; };
+    document.addEventListener('visibilitychange', () => {
+      document.hidden ? stop() : start();
+    });
+    if (!document.hidden) start();
+  })();
+
   // The server stamps "today" in its own timezone (UTC on Render), which reads
   // as tomorrow for anyone behind UTC. Re-default the date field to the
   // browser's local date — but only where it still holds the server default, so
