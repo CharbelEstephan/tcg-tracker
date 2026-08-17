@@ -62,7 +62,9 @@ GAMES = [
 
 # The only endpoints reachable while logged out. Everything else — the home
 # picker, every game logger, and any game added later — is gated below.
-PUBLIC_ENDPOINTS = {"login", "static"}
+# "ping" is the keep-alive heartbeat, left open so it stays cheap and can't
+# bounce to /login.
+PUBLIC_ENDPOINTS = {"login", "static", "ping"}
 
 
 @app.before_request
@@ -102,6 +104,15 @@ def home():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/ping")
+def ping():
+    """Keep-alive heartbeat. The log-game pages poll this every few minutes so
+    Render's free tier doesn't spin the service down mid-game (a Riftbound
+    match runs longer than the ~15-minute idle window). Deliberately trivial —
+    no DB, no template — so it's near-instant and cheap to hit."""
+    return "ok", 200
 
 
 def get_conn():
