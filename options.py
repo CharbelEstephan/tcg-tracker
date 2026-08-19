@@ -68,6 +68,7 @@ EVENT_TYPES = [
     "Summoner Skirmish",
     "Pre Rift",
     "Online",
+    "In Person",
 ]
 
 # Riftbound sets, in release order. Add new ones here as they drop.
