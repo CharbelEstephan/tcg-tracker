@@ -108,6 +108,14 @@ HIT_TYPES = [
     ("hit_nn_chase",   "Nexus Night Chase"),
 ]
 
+# Columns summed into the "Hits" total shown in the recent-openings table.
+# Rare and Leader come guaranteed in every pack, so they'd inflate the count
+# without signalling anything — the total is meant to reflect notable pulls.
+# They still appear on the form and in the stored data; they just don't count
+# toward the summary.
+_TOTAL_EXCLUDE = {"hit_rare", "hit_leader"}
+TOTAL_HIT_TYPES = [(c, l) for c, l in HIT_TYPES if c not in _TOTAL_EXCLUDE]
+
 # Hit types tracked on the Box Hit tab. Boxes don't track Rare, Leader, or
 # Nexus Night Chase, so they're dropped here. The boxes table still has those
 # columns (they just stay 0) - only the form and totals use this subset.

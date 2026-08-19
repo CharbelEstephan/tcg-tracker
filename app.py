@@ -185,9 +185,9 @@ def get_distinct_openings(column):
 
 
 def get_recent_openings(limit=15):
-    # Total hits is the sum of the ten hit_* columns, built from options so a
-    # new hit type only ever needs adding in one place.
-    total = " + ".join(col for col, _ in options.HIT_TYPES)
+    # Total hits sums the notable hit_* columns (Rare and Leader are guaranteed,
+    # so they're excluded), built from options so the set lives in one place.
+    total = " + ".join(col for col, _ in options.TOTAL_HIT_TYPES)
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             cur.execute(
