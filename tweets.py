@@ -77,25 +77,35 @@ def compose_pull_tweet(rows, card_rows):
         lines.append(f"{packs} pulls in and still no hit."
                      if first else
                      f"It's been {packs} pulls since our last hit.")
-        return _cap("\n".join(lines))
-
-    notable.sort(key=lambda c: _RANK[c], reverse=True)
-    lines.append("Pulled: " + ", ".join(f"{cur[c]} {_LABEL[c]}" for c in notable) + ".")
-
-    head = notable[0]
-    label = _LABEL[head]
-    packs, first = _packs_since(rows, idx, [head])
-    cards = ", ".join(name for (lbl, name) in card_rows if lbl == label)
-
-    if head in BIG_HIT_COLS:
-        lines.append(f"BIG HIT!! We pulled {cards}!" if cards
-                     else f"BIG HIT!! A {label}!")
-        lines.append(f"Our first {label} ever!" if first
-                     else f"Our first {label} in {packs} pulls!")
     else:
-        named = f" ({cards})" if cards else ""
-        lines.append(f"Our first {label}{named} ever!" if first
-                     else f"Our first {label}{named} in {packs} pulls!")
+        notable.sort(key=lambda c: _RANK[c], reverse=True)
+        lines.append("Pulled: "
+                     + ", ".join(f"{cur[c]} {_LABEL[c]}" for c in notable) + ".")
+
+        head = notable[0]
+        label = _LABEL[head]
+        packs, first = _packs_since(rows, idx, [head])
+        cards = ", ".join(name for (lbl, name) in card_rows if lbl == label)
+
+        if head in BIG_HIT_COLS:
+            lines.append(f"BIG HIT!! We pulled {cards}!" if cards
+                         else f"BIG HIT!! A {label}!")
+            lines.append(f"Our first {label} ever!" if first
+                         else f"Our first {label} in {packs} pulls!")
+        else:
+            named = f" ({cards})" if cards else ""
+            lines.append(f"Our first {label}{named} ever!" if first
+                         else f"Our first {label}{named} in {packs} pulls!")
+
+    # Running tally of packs that included a leader in this set (leaders come
+    # ~one per pack, so hit_leader summed across the set is the leader-pack
+    # count). Shown whenever this pull had a leader.
+    if (cur.get("hit_leader") or 0) > 0:
+        leader_packs = sum((r["hit_leader"] or 0) for r in rows
+                           if r["set_name"] == cur["set_name"])
+        noun = "pack" if leader_packs == 1 else "packs"
+        lines.append(f"That's now {leader_packs} {noun} with a leader "
+                     f"in {cur['set_name']}.")
 
     return _cap("\n".join(lines))
 
