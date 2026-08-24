@@ -113,6 +113,19 @@
   .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
   .grid-2col { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .flip-row { display:flex; gap:12px; }
+  .flip { flex:1; min-width:0; }
+  .flip-k { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--faint); margin-bottom:5px; }
+  .stepper { display:flex; align-items:stretch; border:1px solid var(--line-strong);
+    border-radius:9px; overflow:hidden; background:rgba(9,11,20,0.6); }
+  .stepper .step { flex:none; width:40px; padding:10px 0; background:transparent; border:0;
+    color:var(--muted); font-size:18px; font-weight:600; line-height:1; cursor:pointer;
+    transition:background .12s, color .12s; }
+  .stepper .step:hover { background:rgba(255,255,255,0.06); color:var(--ink); }
+  .stepper .step:active { background:color-mix(in srgb, var(--accent) 32%, transparent); color:#fff; }
+  .stepper .step-val { flex:1; align-self:center; text-align:center;
+    font-family:"Sora", sans-serif; font-size:16px; font-weight:600; color:var(--ink); }
   label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
     color:var(--faint); margin-bottom:5px; font-weight:500; }
   input, select { width:100%; padding:10px 11px; border-radius:9px;
@@ -233,6 +246,15 @@
     </select>
   {% endmacro %}
 
+  {% macro stepper(name, val) %}
+    <div class="stepper">
+      <button type="button" class="step" data-step="-1" aria-label="decrease {{ name }}">&minus;</button>
+      <output class="step-val">{{ val }}</output>
+      <button type="button" class="step" data-step="1" aria-label="increase {{ name }}">+</button>
+      <input type="hidden" name="{{ name }}" value="{{ val }}">
+    </div>
+  {% endmacro %}
+
   <form id="matchform" method="post" action="{{ url_for('pokemon.edit', match_id=edit_id) if edit_id else url_for('pokemon.form') }}">
 
     <fieldset>
@@ -323,21 +345,21 @@
       <legend>Coin flips</legend>
       <div class="grid">
         <div>
-          <label>Your flips — heads / tails</label>
-          <div class="grid-2col">
-            <input type="number" name="my_heads" min="0" value="{{ request.form.get('my_heads') or initial.get('my_heads','') }}" placeholder="Heads">
-            <input type="number" name="my_tails" min="0" value="{{ request.form.get('my_tails') or initial.get('my_tails','') }}" placeholder="Tails">
+          <label>Your flips</label>
+          <div class="flip-row">
+            <div class="flip"><span class="flip-k">Heads</span>{{ stepper('my_heads', request.form.get('my_heads') or initial.get('my_heads') or '0') }}</div>
+            <div class="flip"><span class="flip-k">Tails</span>{{ stepper('my_tails', request.form.get('my_tails') or initial.get('my_tails') or '0') }}</div>
           </div>
         </div>
         <div>
-          <label>Opponent flips — heads / tails</label>
-          <div class="grid-2col">
-            <input type="number" name="opp_heads" min="0" value="{{ request.form.get('opp_heads') or initial.get('opp_heads','') }}" placeholder="Heads">
-            <input type="number" name="opp_tails" min="0" value="{{ request.form.get('opp_tails') or initial.get('opp_tails','') }}" placeholder="Tails">
+          <label>Opponent flips</label>
+          <div class="flip-row">
+            <div class="flip"><span class="flip-k">Heads</span>{{ stepper('opp_heads', request.form.get('opp_heads') or initial.get('opp_heads') or '0') }}</div>
+            <div class="flip"><span class="flip-k">Tails</span>{{ stepper('opp_tails', request.form.get('opp_tails') or initial.get('opp_tails') or '0') }}</div>
           </div>
         </div>
       </div>
-      <p class="muted" style="margin:8px 0 0">Count of heads and tails each side flipped this game. Leave at zero if none.</p>
+      <p class="muted" style="margin:10px 0 0">Tap + / − to count heads and tails each side flipped this game.</p>
     </fieldset>
 
     <button type="submit" class="primary">{{ 'Save changes' if edit_id else 'Log match' }}</button>
@@ -511,6 +533,23 @@
     if (closeBtn) closeBtn.addEventListener('click', function () { setOpen(false); });
     scrim.addEventListener('click', function () { setOpen(false); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+  })();
+
+  // Coin-flip steppers: +/- buttons drive a hidden input (never below zero)
+  // and update the visible count, so the same field names still submit.
+  (function () {
+    document.querySelectorAll('.stepper').forEach(function (st) {
+      var input = st.querySelector('input[type=hidden]');
+      var out = st.querySelector('.step-val');
+      st.querySelectorAll('.step').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var v = (parseInt(input.value, 10) || 0) + parseInt(btn.dataset.step, 10);
+          if (v < 0) v = 0;
+          input.value = v;
+          out.textContent = v;
+        });
+      });
+    });
   })();
 
   // Sub-tabs (Recent / By rank / Coin flips) — show one panel at a time.
