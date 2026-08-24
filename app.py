@@ -418,7 +418,6 @@ def delete(game_id):
     return redirect(url_for("riftbound"))
 
 
-@app.route("/pulls", methods=["POST"])
 def _openings_ordered_for_tweet():
     cols = ["id", "quantity", "set_name", "product", "location"] + \
            [c for c, _ in options.HIT_TYPES]
@@ -455,6 +454,7 @@ def maybe_tweet_pull(opening_id):
         app.logger.exception("Pull tweet failed for opening %s", opening_id)
 
 
+@app.route("/pulls", methods=["POST"])
 def add_pull():
     f = request.form
 
