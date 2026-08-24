@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from flask import Flask, redirect, render_template, request, session, url_for
 
 import options
+import tweets
 from pokemon import bp as pokemon_bp
 
 load_dotenv()
@@ -418,6 +419,42 @@ def delete(game_id):
 
 
 @app.route("/pulls", methods=["POST"])
+def _openings_ordered_for_tweet():
+    cols = ["id", "quantity", "set_name", "product", "location"] + \
+           [c for c, _ in options.HIT_TYPES]
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(f"SELECT {', '.join(cols)} FROM openings "
+                        "ORDER BY acquired_on ASC, id ASC")
+            return cur.fetchall()
+
+
+def _cards_for_opening(opening_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT rarity, card_name FROM opening_cards "
+                        "WHERE opening_id = %s", (opening_id,))
+            return [(r[0], r[1]) for r in cur.fetchall()]
+
+
+def maybe_tweet_pull(opening_id):
+    """Compose and post the pull tweet. Never raises and never blocks logging —
+    any failure is logged and swallowed."""
+    try:
+        rows = _openings_ordered_for_tweet()
+        ids = [r["id"] for r in rows]
+        if opening_id not in ids:
+            return
+        idx = ids.index(opening_id)
+        text = tweets.compose_pull_tweet(rows[:idx + 1],
+                                         _cards_for_opening(opening_id))
+        ok, info = tweets.post_tweet(text)
+        app.logger.info("Pull tweet for opening %s: %s (%s)", opening_id,
+                        "posted" if ok else "skipped", info)
+    except Exception:
+        app.logger.exception("Pull tweet failed for opening %s", opening_id)
+
+
 def add_pull():
     f = request.form
 
@@ -456,6 +493,7 @@ def add_pull():
                     [(opening_id, rarity, name) for rarity, name in card_rows],
                 )
 
+    maybe_tweet_pull(opening_id)
     return redirect(url_for("riftbound", _anchor="tab-pulls"))
 
 
