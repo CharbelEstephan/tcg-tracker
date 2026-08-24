@@ -10,7 +10,24 @@ import options
 # Rarity rank = position in HIT_TYPES (later in the list = rarer). Drives both
 # "headline the rarest hit" and the per-type drought counts.
 _RANK = {col: i for i, (col, _) in enumerate(options.HIT_TYPES)}
+
+# Original labels (as stored on opening_cards). _LABEL is the singular display
+# form — only "Signature Spells" needs fixing; the rest are already singular
+# and pluralize with a plain "s".
+_ORIG_LABEL = dict(options.HIT_TYPES)
 _LABEL = dict(options.HIT_TYPES)
+_LABEL["hit_sig_spell"] = "Signature Spell"
+
+
+def _plural_pull(n):
+    return "pull" if n == 1 else "pulls"
+
+
+def _hit_label(col, n):
+    """Singular for one, +s for more (works for every hit label once
+    Signature Spells is singularized)."""
+    lbl = _LABEL[col]
+    return lbl if (n or 0) == 1 else lbl + "s"
 
 # A "hit" worth tweeting about excludes the guaranteed Rare/Leader.
 NOTABLE_COLS = [col for col, _ in options.TOTAL_HIT_TYPES]
@@ -67,35 +84,39 @@ def compose_pull_tweet(rows, card_rows):
     pack_word = product if qty == 1 else _pluralize(product)
     where = f" from {cur['location']}" if cur.get("location") else ""
 
-    lines = [f"{cur['set_name']} pulls!",
-             f"Ripped {qty} {pack_word}{where}."]
+    # Each element is its own paragraph, joined with a blank line so the tweet
+    # reads in sections rather than one stacked column.
+    parts = [f"{cur['set_name']} pulls! Ripped {qty} {pack_word}{where}."]
 
-    notable = [c for c in NOTABLE_COLS if (cur[c] or 0) > 0]
+    notable = sorted((c for c in NOTABLE_COLS if (cur[c] or 0) > 0),
+                     key=lambda c: _RANK[c], reverse=True)
 
     if not notable:
         packs, first = _packs_since(rows, idx, NOTABLE_COLS)
-        lines.append(f"{packs} pulls in and still no hit."
+        parts.append(f"{packs} {_plural_pull(packs)} in and still no hit."
                      if first else
-                     f"It's been {packs} pulls since our last hit.")
+                     f"It's been {packs} {_plural_pull(packs)} since our last hit.")
     else:
-        notable.sort(key=lambda c: _RANK[c], reverse=True)
-        lines.append("Pulled: "
-                     + ", ".join(f"{cur[c]} {_LABEL[c]}" for c in notable) + ".")
-
         head = notable[0]
         label = _LABEL[head]
         packs, first = _packs_since(rows, idx, [head])
-        cards = ", ".join(name for (lbl, name) in card_rows if lbl == label)
+        when = "ever!" if first else f"in {packs} {_plural_pull(packs)}!"
+        cards = ", ".join(name for (lbl, name) in card_rows
+                          if lbl == _ORIG_LABEL[head])
 
         if head in BIG_HIT_COLS:
-            lines.append(f"BIG HIT!! We pulled {cards}!" if cards
-                         else f"BIG HIT!! A {label}!")
-            lines.append(f"Our first {label} ever!" if first
-                         else f"Our first {label} in {packs} pulls!")
+            who = f"We pulled {cards}" if cards else f"A {label}"
+            story = f"BIG HIT!! {who} — our first {label} {when}"
         else:
             named = f" ({cards})" if cards else ""
-            lines.append(f"Our first {label}{named} ever!" if first
-                         else f"Our first {label}{named} in {packs} pulls!")
+            story = f"Our first {label}{named} {when}"
+
+        # With more than one hit, lead with the full list; a lone hit is
+        # already named in the story line, so skip the redundant summary.
+        if len(notable) > 1:
+            summary = ", ".join(f"{cur[c]} {_hit_label(c, cur[c])}" for c in notable)
+            story = f"Pulled: {summary}.\n{story}"
+        parts.append(story)
 
     # Running tally of packs that included a leader in this set (leaders come
     # ~one per pack, so hit_leader summed across the set is the leader-pack
@@ -104,10 +125,10 @@ def compose_pull_tweet(rows, card_rows):
         leader_packs = sum((r["hit_leader"] or 0) for r in rows
                            if r["set_name"] == cur["set_name"])
         noun = "pack" if leader_packs == 1 else "packs"
-        lines.append(f"That's now {leader_packs} {noun} with a leader "
+        parts.append(f"That's now {leader_packs} {noun} with a leader "
                      f"in {cur['set_name']}.")
 
-    return _cap("\n".join(lines))
+    return _cap("\n\n".join(parts))
 
 
 def tweet_enabled():
