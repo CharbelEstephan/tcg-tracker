@@ -124,11 +124,15 @@ def get_legend_domains():
     """Build a legend -> [domain_1, domain_2] map from what you've logged.
 
     Every game records a legend next to its domains, on both sides of the
-    table, so the mapping is already sitting in your own data. Nothing
-    hardcoded means nothing to go stale when a set drops. If a legend has been
-    logged with two different pairings (a typo, most likely), the most
-    frequent one wins.
+    table, so the mapping is already sitting in your own data. New sets are
+    seeded from options.LEGEND_DOMAINS so their legends auto-fill before
+    they've been logged; once you've actually logged a legend, your own data
+    wins. If a legend has been logged with two different pairings (a typo, most
+    likely), the most frequent one wins.
     """
+    # Start from the seed so a just-released set works immediately.
+    mapping = {leg: list(doms) for leg, doms in options.LEGEND_DOMAINS.items()}
+
     pairs = defaultdict(Counter)
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -142,10 +146,11 @@ def get_legend_domains():
             for leader, d1, d2 in cur.fetchall():
                 if leader and d1:
                     pairs[leader][(d1, d2)] += 1
-    return {
-        leader: list(c.most_common(1)[0][0])
-        for leader, c in pairs.items()
-    }
+
+    # Logged data overrides the seed.
+    for leader, c in pairs.items():
+        mapping[leader] = list(c.most_common(1)[0][0])
+    return mapping
 
 
 def get_distinct(column):

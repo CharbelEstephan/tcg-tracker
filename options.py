@@ -61,7 +61,34 @@ LEGENDS = [
     "Volibear, Relentless Storm",
     "Yasuo, Unforgiven",
     "Zed, Master of Shadows",
+    # Radiance (set 5, 2026-10-18).
+    "Ekko, Boy Who Shattered Time",
+    "Evelynn, Agony's Embrace",
+    "Jarvan IV, Exemplar of Demacia",
+    "K'sante, Pride of Nazumah",
+    "Mordekaiser, Iron Revenant",
+    "Orianna, Lady of Clockwork",
+    "Riven, The Exile",
+    "Seraphine, Starry-Eyed Songstress",
+    "Ziggs, Hexplosives Expert",
 ]
+
+# Known legend -> (domain_1, domain_2), in card order. Seeds the domain
+# auto-fill so a freshly released set's legends fill their domains before
+# they've ever been logged; anything you actually log overrides this (see
+# get_legend_domains). Older legends aren't listed here — they're learned
+# straight from your games.
+LEGEND_DOMAINS = {
+    "Ekko, Boy Who Shattered Time":      ("Fury", "Mind"),
+    "Ziggs, Hexplosives Expert":         ("Fury", "Chaos"),
+    "Mordekaiser, Iron Revenant":        ("Fury", "Order"),
+    "Orianna, Lady of Clockwork":        ("Calm", "Mind"),
+    "K'sante, Pride of Nazumah":         ("Calm", "Body"),
+    "Riven, The Exile":                  ("Calm", "Chaos"),
+    "Jarvan IV, Exemplar of Demacia":    ("Body", "Order"),
+    "Evelynn, Agony's Embrace":          ("Body", "Chaos"),
+    "Seraphine, Starry-Eyed Songstress": ("Mind", "Order"),
+}
 
 EVENT_TYPES = [
     "Nexus Night",
