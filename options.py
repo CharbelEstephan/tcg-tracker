@@ -77,6 +77,7 @@ SETS = [
     "Spiritforged",
     "Unleashed",
     "Vendetta",
+    "Radiance",
 ]
 
 # Pack-opening products you can log a pull from.
