@@ -6,7 +6,8 @@ from datetime import date, timedelta
 import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import (Flask, flash, redirect, render_template, request,
+                   session, url_for)
 
 import options
 import tweets
@@ -442,21 +443,26 @@ def _cards_for_opening(opening_id):
 
 
 def maybe_tweet_pull(opening_id):
-    """Compose and post the pull tweet. Never raises and never blocks logging —
-    any failure is logged and swallowed."""
+    """Compose and post the pull tweet. Never raises and never blocks logging.
+    Returns (ok, info) so the caller can surface the result to the user."""
     try:
         rows = _openings_ordered_for_tweet()
         ids = [r["id"] for r in rows]
         if opening_id not in ids:
-            return
+            return False, "opening not found"
         idx = ids.index(opening_id)
         text = tweets.compose_pull_tweet(rows[:idx + 1],
                                          _cards_for_opening(opening_id))
         ok, info = tweets.post_tweet(text)
-        app.logger.info("Pull tweet for opening %s: %s (%s)", opening_id,
-                        "posted" if ok else "skipped", info)
-    except Exception:
+        # Log a failure at WARNING so the reason shows in Render — gunicorn
+        # drops app.logger INFO lines, which is why skips looked invisible.
+        log = app.logger.info if ok else app.logger.warning
+        log("Pull tweet for opening %s: %s (%s)", opening_id,
+            "posted" if ok else "not sent", info)
+        return ok, info
+    except Exception as e:  # noqa: BLE001 - report any failure, never raise
         app.logger.exception("Pull tweet failed for opening %s", opening_id)
+        return False, str(e)
 
 
 @app.route("/pulls", methods=["POST"])
@@ -498,7 +504,14 @@ def add_pull():
                     [(opening_id, rarity, name) for rarity, name in card_rows],
                 )
 
-    maybe_tweet_pull(opening_id)
+    ok, info = maybe_tweet_pull(opening_id)
+    # Only surface a tweet banner when the feature is actually turned on, so a
+    # tracker running with tweets off stays quiet.
+    if tweets.tweet_enabled():
+        if ok:
+            flash("Tweet posted.", "tweet_ok")
+        else:
+            flash(f"Tweet not sent: {info}", "tweet_err")
     return redirect(url_for("riftbound", _anchor="tab-pulls"))
 
 
