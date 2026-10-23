@@ -84,12 +84,12 @@ def compose_pull_tweet(rows, card_rows):
     where = f" from {cur['location']}" if cur.get("location") else ""
 
     # Quantity is always a pack count. A container product (a Vault, etc.) holds
-    # several packs, so phrase it as "Opened a Vault — ripped N packs" rather
+    # several packs, so phrase it as "Opened a Vault and ripped N packs" rather
     # than pluralizing the product into "6 Vaults".
     if product in options.CONTAINER_PRODUCTS:
         article = "an" if product[:1].lower() in "aeiou" else "a"
         pack_noun = "pack" if qty == 1 else "packs"
-        opener = f"Opened {article} {product} — ripped {qty} {pack_noun}{where}."
+        opener = f"Opened {article} {product} and ripped {qty} {pack_noun}{where}."
     else:
         pack_word = product if qty == 1 else _pluralize(product)
         opener = f"Ripped {qty} {pack_word}{where}."
@@ -115,8 +115,12 @@ def compose_pull_tweet(rows, card_rows):
                           if lbl == _ORIG_LABEL[head])
 
         if head in BIG_HIT_COLS:
-            who = f"We pulled {cards}" if cards else f"A {label}"
-            story = f"BIG HIT!! {who} — our first {label} {when}"
+            if cards:
+                who = f"We pulled {cards}"
+            else:
+                article = "An" if label[:1].lower() in "aeiou" else "A"
+                who = f"{article} {label}"
+            story = f"BIG HIT!! {who}, our first {label} {when}"
         else:
             named = f" ({cards})" if cards else ""
             story = f"Our first {label}{named} {when}"
