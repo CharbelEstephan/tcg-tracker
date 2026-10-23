@@ -60,6 +60,32 @@ second free Render service would push past 750 and they'd start sleeping. If
 that happens, drop UptimeRobot (the in-app heartbeat still covers active games)
 or move to Render's paid Starter plan, which removes spin-down entirely.
 
+## Phone app JSON API
+
+Everything under `/api/` serves the iPhone app. It shares the website's tables
+and insert code, so a log from either lands identical rows.
+
+- **Auth:** `POST /api/login` with `{"password": "<APP_PASSWORD>"}` returns
+  `{"token": ...}`. Send it as `Authorization: Bearer <token>` on every other
+  call. Tokens last 180 days and are signed with `SECRET_KEY`, so rotating
+  that key signs the phone out. Bad/missing token → `401 {"error": "unauthorized"}`.
+- **Retries are safe:** every write needs a client-generated `client_id`
+  (a UUID). A repeat of one already saved answers `{"id": ..., "duplicate": true}`
+  instead of logging twice. Needs `migrate_api_submissions.sql` — **run it
+  before deploying the API.**
+- **Errors:** bad input → `400 {"error": "<what's wrong>"}`.
+
+| Endpoint | Body (beyond `client_id`) |
+|---|---|
+| `GET /api/lists` | — returns every dropdown and auto-fill map for both games |
+| `POST /api/riftbound/games` | `played_on`, `event_type`, `my_leader`, `my_domain_1`, `opp_leader`, `opp_domain_1` (+ optional `location`, `my_domain_2`, `my_deck`, `opponent`, `opp_domain_2`, `notes`); `series` bool; `games: [{"won": bool, "went_first": bool\|null}]` — 1 game, or up to 3 with `series: true` |
+| `POST /api/riftbound/pulls` | `acquired_on`, `product`, `quantity` ≥ 1, `set_name`, `is_pity`, `hits: {"hit_epic": 1, ...}`, `cards: [{"type": "hit_alt_art", "name": "..."}]`, `location`, `opened_by`, `notes`. Posts the pull tweet like the web form; response `tweet` is `{ok, info}` or `null` when tweets are off |
+| `POST /api/riftbound/boxes` | `opened_on`, `quantity` ≥ 1, `set_name`, `hits`, `cards` (box hit types only), `location`, `notes` |
+| `POST /api/pokemon/matches` | `played_at`, `result` (`win`/`loss`/`draw`), `my_deck_kind`, `my_energy_1`, `opp_deck_kind`, `opp_energy_1` (+ the other form fields; `went_first`/`surrendered` as bools, counts as ints). A deck/event/etc. not in its list yet → `409 {"error": "new_values", "pending": [...]}`; resend with `"confirm_new": true` to add them |
+
+Writes answer `201 {"id": ..., "duplicate": false}` (games also return `ids`
+for every game in a series).
+
 ## Database migrations
 
 Schema changes are plain SQL files (`migrate_*.sql`, `seed_*.sql`) run once

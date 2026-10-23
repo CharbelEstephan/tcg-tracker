@@ -13,7 +13,9 @@ import datetime as dt
 import psycopg2
 import psycopg2.extras
 from flask import (Blueprint, render_template, request,
-                   redirect, url_for, flash)
+                   redirect, url_for, flash, jsonify)
+
+import api_util
 
 bp = Blueprint("pokemon", __name__)
 
@@ -336,6 +338,17 @@ def form():
     return _render_form(carry={k: request.args.get(k, "") for k in STICKY})
 
 
+def _insert_match(cur, row):
+    """Insert one match row (keyed by MATCH_COLS); returns its id."""
+    placeholders = ", ".join(["%s"] * len(MATCH_COLS))
+    cur.execute(
+        f"INSERT INTO matches_pokemon ({', '.join(MATCH_COLS)}) "
+        f"VALUES ({placeholders}) RETURNING id",
+        [row[c] for c in MATCH_COLS],
+    )
+    return cur.fetchone()[0]
+
+
 @bp.route("/pokemon", methods=["POST"])
 def submit():
     f = request.form
@@ -343,13 +356,8 @@ def submit():
     if pending_new:
         return _render_form(pending_new=pending_new), 200
 
-    placeholders = ", ".join(["%s"] * len(MATCH_COLS))
     with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            f"INSERT INTO matches_pokemon ({', '.join(MATCH_COLS)}) "
-            f"VALUES ({placeholders})",
-            [row[c] for c in MATCH_COLS],
-        )
+        _insert_match(cur, row)
     flash("Match logged.", "ok")
     # Carry the sticky context/deck fields back into the fresh form so a run of
     # matches with the same deck doesn't need retyping.
@@ -390,6 +398,69 @@ def edit(match_id):
     if rowdata is None:
         return redirect(url_for("pokemon.form"))
     return _render_form(edit_id=match_id, initial=_form_initial(rowdata))
+
+
+# Phone-app fields passed through to _resolve_and_build as text, exactly as the
+# web form would post them.
+_API_TEXT_FIELDS = [
+    "my_deck_kind", "my_energy_1", "my_energy_2", "my_energy_3",
+    "opp_deck_kind", "opp_energy_1", "opp_energy_2", "opp_energy_3",
+    "event", "set_name", "mvp_card", "location", "rank",
+]
+_API_INT_FIELDS = ["my_points", "opp_points", "total_turns",
+                   "my_heads", "my_tails", "opp_heads", "opp_tails"]
+
+
+@bp.route("/api/pokemon/matches", methods=["POST"])
+def api_add_match():
+    """JSON twin of submit() for the phone app. Translates the body into the
+    form shape _resolve_and_build expects, so validation and new-list-value
+    handling stay identical. A deck/event/etc. not in its list yet gets a 409
+    listing them; resend with "confirm_new": true to add them and log."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise api_util.ApiError("expected a JSON object body")
+    client_id = api_util.text(data, "client_id", required=True)
+    result = api_util.text(data, "result", required=True)
+    if result not in ("win", "loss", "draw"):
+        raise api_util.ApiError("result must be win, loss or draw")
+
+    # The web form marks these required in the browser; the table is NOT NULL.
+    for k in ("my_deck_kind", "my_energy_1", "opp_deck_kind", "opp_energy_1"):
+        api_util.text(data, k, required=True)
+    form = {k: api_util.text(data, k) or "" for k in _API_TEXT_FIELDS}
+    for k in ("my_energy_1", "my_energy_2", "my_energy_3",
+              "opp_energy_1", "opp_energy_2", "opp_energy_3"):
+        if form[k] and form[k] not in ENERGY_TYPES:
+            raise api_util.ApiError(
+                f"{k} must be one of: " + ", ".join(ENERGY_TYPES))
+    for k in _API_INT_FIELDS:
+        present = data.get(k) not in (None, "")
+        form[k] = str(api_util.count(data, k)) if present else ""
+    form.update(
+        played_at=api_util.date_str(data, "played_at"),
+        result=result,
+        went_first="first" if api_util.boolean(data, "went_first") else "second",
+        surrendered="on" if api_util.boolean(data, "surrendered") else "",
+        confirm_new="1" if api_util.boolean(data, "confirm_new") else "",
+    )
+
+    row, pending_new = _resolve_and_build(form)
+    if pending_new:
+        return api_util.error(
+            "new_values", 409,
+            pending=[{"field": label, "value": value}
+                     for label, value in pending_new],
+        )
+
+    with get_conn() as conn, conn.cursor() as cur:
+        is_new, record_id = api_util.claim_submission(cur, client_id,
+                                                      "pokemon_match")
+        if not is_new:
+            return jsonify(id=record_id, duplicate=True)
+        match_id = _insert_match(cur, row)
+        api_util.record_submission(cur, client_id, match_id)
+    return jsonify(id=match_id, duplicate=False), 201
 
 
 @bp.route("/pokemon/delete/<int:match_id>", methods=["POST"])
