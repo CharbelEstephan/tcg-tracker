@@ -81,12 +81,22 @@ def compose_pull_tweet(rows, card_rows):
     idx = len(rows) - 1
     qty = cur["quantity"] or 0
     product = cur["product"] or "pack"
-    pack_word = product if qty == 1 else _pluralize(product)
     where = f" from {cur['location']}" if cur.get("location") else ""
+
+    # Quantity is always a pack count. A container product (a Vault, etc.) holds
+    # several packs, so phrase it as "Opened a Vault — ripped N packs" rather
+    # than pluralizing the product into "6 Vaults".
+    if product in options.CONTAINER_PRODUCTS:
+        article = "an" if product[:1].lower() in "aeiou" else "a"
+        pack_noun = "pack" if qty == 1 else "packs"
+        opener = f"Opened {article} {product} — ripped {qty} {pack_noun}{where}."
+    else:
+        pack_word = product if qty == 1 else _pluralize(product)
+        opener = f"Ripped {qty} {pack_word}{where}."
 
     # Each element is its own paragraph, joined with a blank line so the tweet
     # reads in sections rather than one stacked column.
-    parts = [f"{cur['set_name']} pulls! Ripped {qty} {pack_word}{where}."]
+    parts = [f"{cur['set_name']} pulls! {opener}"]
 
     notable = sorted((c for c in NOTABLE_COLS if (cur[c] or 0) > 0),
                      key=lambda c: _RANK[c], reverse=True)

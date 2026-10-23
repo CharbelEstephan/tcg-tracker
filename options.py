@@ -120,6 +120,16 @@ PRODUCTS = [
     "Other",
 ]
 
+# Products that are a container of several packs rather than a single pack.
+# Quantity is always a pack count, so the tweet phrases these as
+# "Opened a Vault — ripped N packs" instead of "Ripped N Vaults".
+CONTAINER_PRODUCTS = {
+    "Sleeve",
+    "Vault",
+    "Pre Rift Kit",
+    "Bundle Box",
+}
+
 # Ordered (column_name, display_label) for each hit_* column on openings.
 # The order here drives both the form's hit grid and the recent-openings total.
 HIT_TYPES = [
